@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>高度な録音メモ（ペン優先・無限縦ノート）</title>
+    <title>高度な録音メモ（スクロール＆ペン分離版）</title>
     <style>
         body {
             margin: 0;
@@ -12,6 +12,8 @@
             height: 100vh;
             font-family: sans-serif;
             background: #ddd;
+            position: fixed; /* 画面全体の揺れを防止 */
+            width: 100%;
         }
 
         header {
@@ -21,29 +23,28 @@
             flex-wrap: wrap;
             gap: 10px;
             align-items: center;
-            z-index: 100; /* ヘッダーを常に手前に */
+            z-index: 100;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
-        /* キャンバスをスクロール可能にするコンテナ */
         #scroll-container {
             flex-grow: 1;
-            overflow-y: auto; /* 縦スクロールを許可 */
+            overflow-y: scroll; /* 指でのスクロールを強制許可 */
             overflow-x: hidden;
-            -webkit-overflow-scrolling: touch;
             background: #fafafa;
+            -webkit-overflow-scrolling: touch;
         }
 
         canvas {
             display: block;
             background: #fff;
-            touch-action: none; /* ブラウザのデフォルト動作を無効化 */
+            /* touch-action を 'pan-y' にすることで、指1本での縦スクロールをブラウザに任せる */
+            touch-action: pan-y; 
             cursor: crosshair;
         }
 
         audio { height: 35px; }
         #clearBtn { background-color: #ffcccc; }
-        #status { font-size: 14px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -63,7 +64,7 @@
     <script>
         const canvas = document.getElementById('memoCanvas');
         const container = document.getElementById('scroll-container');
-        const ctx = canvas.getContext('2d', { desynchronized: true }); // 低遅延モードを有効化
+        const ctx = canvas.getContext('2d', { desynchronized: true });
         const recordBtn = document.getElementById('recordBtn');
         const stopBtn = document.getElementById('stopBtn');
         const saveBtn = document.getElementById('saveBtn');
@@ -76,8 +77,7 @@
         let audioChunks = [];
         let recordedMimeType = "";
 
-        // --- 1. キャンバスのサイズと無限スクロールの設定 ---
-        const INITIAL_HEIGHT = 2000; // 最初から少し長めにしておく（px）
+        const INITIAL_HEIGHT = 3000; 
 
         function initCanvas() {
             canvas.width = window.innerWidth;
@@ -93,29 +93,26 @@
             ctx.strokeStyle = '#333';
         }
 
-        // 描画が下端に近づいたら高さを自動で伸ばす関数
+        // ノートを伸ばす処理
         function extendCanvasIfNeeded(y) {
-            if (y > canvas.height - 500) {
+            if (y > canvas.height - 800) {
                 const tempImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                canvas.height += 1000; // 1000pxずつ伸ばす
+                canvas.height += 1500;
                 ctx.putImageData(tempImage, 0, 0);
                 setPenStyle();
             }
         }
 
-        // --- 2. 手書き機能（パームリジェクション強化） ---
+        // --- 描画ロジックの改善 ---
         canvas.addEventListener('pointerdown', (e) => {
-            // Apple Pencil等（pen）を優先し、指（touch）による誤作動を軽減
-            // iPadで指で描きたい場合はここを削除してください
-            if (e.pointerType === "touch" && e.buttons === 0) return;
+            // パームリジェクション：ペン(pen)以外で、かつ筆圧が検知できないタッチを無視
+            // 指で書きたい場合は e.pointerType === "touch" の条件を緩める必要があります
+            if (e.pointerType === "touch") return; 
 
             isDrawing = true;
             const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
             ctx.beginPath();
-            ctx.moveTo(x, y);
+            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
         });
 
         canvas.addEventListener('pointermove', (e) => {
@@ -128,7 +125,7 @@
             ctx.lineTo(x, y);
             ctx.stroke();
 
-            extendCanvasIfNeeded(y); // 描画位置に応じてノートを伸ばす
+            extendCanvasIfNeeded(y);
         });
 
         canvas.addEventListener('pointerup', () => {
@@ -136,11 +133,8 @@
             saveToLocalStorage();
         });
 
-        // --- 3. 保存・復元 ---
-        function saveToLocalStorage() {
-            localStorage.setItem('myMemoData', canvas.toDataURL());
-        }
-
+        // --- 保存・録音等の機能（前回同様） ---
+        function saveToLocalStorage() { localStorage.setItem('myMemoData', canvas.toDataURL()); }
         function loadFromLocalStorage() {
             const savedData = localStorage.getItem('myMemoData');
             if (savedData) {
@@ -151,15 +145,14 @@
         }
 
         clearBtn.addEventListener('click', () => {
-            if(confirm("メモをすべて消去しますか？")) {
+            if(confirm("すべて消去しますか？")) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                canvas.height = INITIAL_HEIGHT; // 高さをリセット
+                canvas.height = INITIAL_HEIGHT;
                 setPenStyle();
                 localStorage.removeItem('myMemoData');
             }
         });
 
-        // --- 4. 録音機能 ---
         recordBtn.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -170,17 +163,16 @@
                 mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
                 mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
-                    const audioUrl = URL.createObjectURL(audioBlob);
                     const oldAudio = header.querySelector('audio');
                     if (oldAudio) oldAudio.remove();
                     const audio = document.createElement('audio');
-                    audio.src = audioUrl; audio.controls = true;
+                    audio.src = URL.createObjectURL(audioBlob); audio.controls = true;
                     header.appendChild(audio);
                     status.innerText = "再生準備完了";
                 };
                 mediaRecorder.start();
                 recordBtn.disabled = true; stopBtn.disabled = false;
-                status.innerText = "録音中..."; status.style.color = "red";
+                status.innerText = "録音中...";
             } catch (err) { alert("マイクエラー: " + err.message); }
         });
 
@@ -188,7 +180,7 @@
             if (mediaRecorder && mediaRecorder.state !== "inactive") {
                 mediaRecorder.stop();
                 recordBtn.disabled = false; stopBtn.disabled = true;
-                status.innerText = "停止中"; status.style.color = "black";
+                status.innerText = "停止中";
             }
         });
 
@@ -198,9 +190,8 @@
             linkImg.download = 'memo.png';
             linkImg.click();
             if (audioChunks.length > 0) {
-                const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
                 const linkAudio = document.createElement('a');
-                linkAudio.href = URL.createObjectURL(audioBlob);
+                linkAudio.href = URL.createObjectURL(new Blob(audioChunks, { type: recordedMimeType }));
                 linkAudio.download = `recording.${recordedMimeType.includes('webm') ? 'webm' : 'mp4'}`;
                 linkAudio.click();
             }
