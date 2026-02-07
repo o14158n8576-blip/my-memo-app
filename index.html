@@ -36,10 +36,9 @@
         }
 
         audio {
-            height: 30px;
+            height: 35px;
         }
 
-        /* 削除ボタンのスタイル（おまけ） */
         #clearBtn {
             background-color: #ffcccc;
         }
@@ -73,8 +72,9 @@
         let isDrawing = false;
         let mediaRecorder;
         let audioChunks = [];
+        let recordedMimeType = "";
 
-        // --- 1. キャンバスの基本設定 ---
+        // --- 1. キャンバスの設定 ---
         function setPenStyle() {
             ctx.lineWidth = 2;
             ctx.lineCap = 'round';
@@ -82,13 +82,10 @@
         }
 
         function resizeCanvas() {
-            // 保存前の状態を一時退避
             const tempImage = canvas.toDataURL();
             canvas.width = container.clientWidth;
             canvas.height = container.clientHeight;
             setPenStyle();
-            
-            // リサイズ後、退避した画像を復元
             const img = new Image();
             img.src = tempImage;
             img.onload = () => ctx.drawImage(img, 0, 0);
@@ -96,33 +93,26 @@
         window.addEventListener('load', resizeCanvas);
         window.addEventListener('resize', resizeCanvas);
 
-        // --- 2. 手書き機能 & 自動保存のトリガー ---
+        // --- 2. 手書き機能 ---
         canvas.addEventListener('pointerdown', (e) => {
             isDrawing = true;
             ctx.beginPath();
             ctx.moveTo(e.offsetX, e.offsetY);
         });
-
         canvas.addEventListener('pointermove', (e) => {
             if (!isDrawing) return;
             ctx.lineTo(e.offsetX, e.offsetY);
             ctx.stroke();
         });
-
         canvas.addEventListener('pointerup', () => {
             isDrawing = false;
-            saveToLocalStorage(); // ペンを離した瞬間に自動保存
+            saveToLocalStorage();
         });
 
-        // --- 3. 自動保存の仕組み (localStorageを使用) ---
-        // 初心者向けに扱いやすい localStorage を使います
         function saveToLocalStorage() {
-            const data = canvas.toDataURL();
-            localStorage.setItem('myMemoData', data);
-            console.log("メモを自動保存しました");
+            localStorage.setItem('myMemoData', canvas.toDataURL());
         }
 
-        // ページ読み込み時に復元する
         window.addEventListener('load', () => {
             const savedData = localStorage.getItem('myMemoData');
             if (savedData) {
@@ -132,7 +122,6 @@
             }
         });
 
-        // 全消去ボタン
         clearBtn.addEventListener('click', () => {
             if(confirm("メモをすべて消去しますか？")) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -140,25 +129,36 @@
             }
         });
 
-        // --- 4. 録音機能 ---
+        // --- 3. 録音機能（iPad対応強化） ---
         recordBtn.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-                mediaRecorder = new MediaRecorder(stream, { mimeType });
+                
+                // iPad(Safari)はaudio/mp4を、それ以外はaudio/webmを優先
+                const types = ['audio/mp4', 'audio/webm', 'audio/ogg'];
+                recordedMimeType = types.find(type => MediaRecorder.isTypeSupported(type)) || "";
+
+                mediaRecorder = new MediaRecorder(stream, { mimeType: recordedMimeType });
                 audioChunks = [];
-                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) audioChunks.push(e.data);
+                };
+
                 mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: mimeType });
+                    const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
                     const audioUrl = URL.createObjectURL(audioBlob);
+                    
                     const oldAudio = header.querySelector('audio');
                     if (oldAudio) oldAudio.remove();
+
                     const audio = document.createElement('audio');
                     audio.src = audioUrl;
                     audio.controls = true;
                     header.appendChild(audio);
                     status.innerText = "再生準備完了";
                 };
+
                 mediaRecorder.start();
                 recordBtn.disabled = true;
                 stopBtn.disabled = false;
@@ -175,21 +175,26 @@
             }
         });
 
-        // --- 5. 手動ダウンロード保存機能 ---
+        // --- 4. 保存機能（拡張子判別） ---
         saveBtn.addEventListener('click', () => {
-            const image = canvas.toDataURL("image/png");
+            // 画像保存
             const linkImg = document.createElement('a');
-            linkImg.href = image;
+            linkImg.href = canvas.toDataURL("image/png");
             linkImg.download = 'memo.png';
             linkImg.click();
 
+            // 音声保存
             if (audioChunks.length > 0) {
-                const mimeType = mediaRecorder.mimeType;
-                const audioBlob = new Blob(audioChunks, { type: mimeType });
+                const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
                 const audioUrl = URL.createObjectURL(audioBlob);
                 const linkAudio = document.createElement('a');
                 linkAudio.href = audioUrl;
-                const extension = mimeType.includes('webm') ? 'webm' : 'mp4';
+                
+                // 形式に合わせて拡張子を変更
+                let extension = 'mp4'; 
+                if (recordedMimeType.includes('webm')) extension = 'webm';
+                if (recordedMimeType.includes('ogg')) extension = 'ogg';
+                
                 linkAudio.download = `recording.${extension}`;
                 linkAudio.click();
             }
