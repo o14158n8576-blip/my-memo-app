@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro + 図形補正</title>
+    <title>録音メモ シンプル</title>
     <style>
         :root {
             --primary-color: #007aff; --danger-color: #ff3b30; --success-color: #34c759; --bg-header: #f8f8f8;
@@ -14,29 +14,30 @@
         }
         header {
             background: var(--bg-header); padding: 12px; display: flex; flex-wrap: wrap;
-            gap: 10px; align-items: center; z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            gap: 15px; align-items: center; z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
         }
+        /* モード切替 */
         .mode-selector { display: flex; background: #e0e0e0; border-radius: 12px; padding: 3px; }
-        .mode-btn { padding: 10px 20px; border: none; border-radius: 9px; cursor: pointer; font-weight: bold; font-size: 16px; }
-        .active { background: white; color: var(--primary-color); }
+        .mode-btn { padding: 12px 24px; border: none; border-radius: 9px; cursor: pointer; font-weight: bold; font-size: 18px; transition: 0.2s; }
+        .active { background: white; color: var(--primary-color); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
         /* カラー選択 */
-        .color-picker { display: flex; gap: 8px; margin: 0 10px; }
-        .color-dot {
-            width: 35px; height: 35px; border-radius: 50%; border: 2px solid transparent; cursor: pointer;
-        }
+        .color-picker { display: flex; gap: 10px; margin: 0 10px; }
+        .color-dot { width: 40px; height: 40px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: 0.2s; }
         .color-dot.selected { border-color: #555; transform: scale(1.1); }
 
-        button { padding: 10px 16px; border-radius: 10px; border: none; font-size: 15px; font-weight: bold; }
+        /* ボタン */
+        button { padding: 12px 20px; border-radius: 12px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; }
         #recordBtn { background: var(--primary-color); color: white; }
         #stopBtn { background: var(--danger-color); color: white; }
+        #stopBtn:disabled { background: #bbb; opacity: 0.5; }
         #saveBtn { background: var(--success-color); color: white; }
         #clearBtn { background: #8e8e93; color: white; margin-left: auto; }
 
+        #status-display { font-size: 18px; font-weight: bold; color: #444; min-width: 120px; text-align: center; }
+
         #scroll-container { flex-grow: 1; overflow-y: scroll; background: #fafafa; -webkit-overflow-scrolling: touch; }
         canvas { display: block; background: #fff; touch-action: none; }
-        .audio-wrapper { display: flex; align-items: center; background: #fff; padding: 2px 10px; border-radius: 20px; border: 1px solid #ddd; }
-        audio { height: 40px; width: 200px; }
     </style>
 </head>
 <body>
@@ -54,11 +55,12 @@
         </div>
         
         <button id="recordBtn">録音開始</button>
-        <button id="stopBtn" disabled>停止</button>
-        <div id="audio-container"></div>
-        <button id="saveBtn">メモ保存</button>
+        <button id="stopBtn" disabled>停止・音声保存</button>
+        
+        <div id="status-display">停止中</div>
+
+        <button id="saveBtn">メモ保存(JPG)</button>
         <button id="clearBtn">消去</button>
-        <div id="status" style="font-size:12px; font-weight:bold;">停止中</div>
     </header>
 
     <div id="scroll-container">
@@ -69,14 +71,13 @@
         const canvas = document.getElementById('memoCanvas');
         const container = document.getElementById('scroll-container');
         const ctx = canvas.getContext('2d', { desynchronized: true });
-        const audioContainer = document.getElementById('audio-container');
-        const status = document.getElementById('status');
+        const statusDisplay = document.getElementById('status-display');
 
         let isDrawing = false;
         let editMode = 'draw';
         let currentColor = '#000000';
-        let currentPath = []; // 図形判定用
-        let holdTimer; // 長押し判定用
+        let mediaRecorder;
+        let audioChunks = [];
         const INITIAL_HEIGHT = 4000;
 
         function initCanvas() {
@@ -90,7 +91,7 @@
             ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = currentColor;
         }
 
-        // --- カラー選択 ---
+        // カラー切り替え
         document.querySelectorAll('.color-dot').forEach(dot => {
             dot.onclick = () => {
                 document.querySelector('.color-dot.selected').classList.remove('selected');
@@ -100,7 +101,7 @@
             };
         });
 
-        // モード切替
+        // モード切り替え
         document.getElementById('drawModeBtn').onclick = (e) => {
             editMode = 'draw'; e.target.classList.add('active');
             document.getElementById('scrollModeBtn').classList.remove('active');
@@ -110,105 +111,85 @@
             document.getElementById('drawModeBtn').classList.remove('active');
         };
 
-        // --- 図形補正ロジック ---
-        function recognizeShape(path) {
-            if (path.length < 20) return null;
-            const xs = path.map(p => p.x); const ys = path.map(p => p.y);
-            const minX = Math.min(...xs); const maxX = Math.max(...xs);
-            const minY = Math.min(...ys); const maxY = Math.max(...ys);
-            const width = maxX - minX; const height = maxY - minY;
-            const centerX = (minX + maxX) / 2; const centerY = (minY + maxY) / 2;
-
-            // 始点と終点の距離
-            const dist = Math.hypot(path[0].x - path[path.length-1].x, path[0].y - path[path.length-1].y);
-            if (dist > 100) return null; // 閉じていない図形は無視
-
-            // 円判定 (中心からの距離の分散で簡易判定)
-            const radius = (width + height) / 4;
-            let isCircle = true;
-            for(let i=0; i<path.length; i+=5) {
-                const d = Math.hypot(path[i].x - centerX, path[i].y - centerY);
-                if (Math.abs(d - radius) > radius * 0.3) { isCircle = false; break; }
-            }
-            if (isCircle) return { type: 'circle', x: centerX, y: centerY, r: radius };
-            
-            // それ以外は四角
-            return { type: 'rect', x: minX, y: minY, w: width, h: height };
-        }
-
-        function applyShape(shape) {
-            // 直前の手書き線を消すために再描画（簡易版：直前のパス部分を白塗りして上書き）
-            // 実際は画面全体を戻すのが理想ですが、ここでは上から綺麗な図形を重ねます
-            ctx.strokeStyle = currentColor; ctx.lineWidth = 3;
-            if (shape.type === 'circle') {
-                ctx.beginPath(); ctx.arc(shape.x, shape.y, shape.r, 0, Math.PI * 2); ctx.stroke();
-            } else {
-                ctx.strokeRect(shape.x, shape.y, shape.w, shape.h);
+        function extendCanvasIfNeeded(y) {
+            if (y > canvas.height - 800) {
+                const tempImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                canvas.height += 2000; ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.putImageData(tempImage, 0, 0); setPenStyle();
             }
         }
 
         // 描画イベント
-        canvas.addEventListener('touchstart', (e) => {
+        function startDrawing(e) {
             if (editMode !== 'draw') return;
-            isDrawing = true; currentPath = [];
-            const t = e.touches[0]; const rect = canvas.getBoundingClientRect();
-            const p = { x: t.clientX - rect.left, y: t.clientY - rect.top };
-            currentPath.push(p);
-            ctx.beginPath(); ctx.moveTo(p.x, p.y);
-            
-            // 長押しタイマー開始
-            clearTimeout(holdTimer);
-            holdTimer = setTimeout(() => {
-                if (isDrawing && currentPath.length > 20) {
-                    const shape = recognizeShape(currentPath);
-                    if (shape) {
-                        // 手書きを消すのは難しいので、一度描画を止めて図形を描く
-                        isDrawing = false;
-                        applyShape(shape);
-                        saveToLocalStorage();
-                    }
-                }
-            }, 700);
-        }, { passive: false });
+            isDrawing = true;
+            const t = e.touches ? e.touches[0] : e;
+            const rect = canvas.getBoundingClientRect();
+            ctx.beginPath();
+            ctx.moveTo(t.clientX - rect.left, t.clientY - rect.top);
+        }
 
-        canvas.addEventListener('touchmove', (e) => {
+        function moveDrawing(e) {
             if (!isDrawing || editMode !== 'draw') return;
-            e.preventDefault();
-            const t = e.touches[0]; const rect = canvas.getBoundingClientRect();
-            const p = { x: t.clientX - rect.left, y: t.clientY - rect.top };
-            currentPath.push(p);
-            ctx.lineTo(p.x, p.y); ctx.stroke();
-            if (p.y > canvas.height - 800) { /* 延長処理省略...前回と同じ */ }
-        }, { passive: false });
+            if (e.cancelable) e.preventDefault();
+            const t = e.touches ? e.touches[0] : e;
+            const rect = canvas.getBoundingClientRect();
+            const x = t.clientX - rect.left;
+            const y = t.clientY - rect.top;
+            ctx.lineTo(x, y); ctx.stroke();
+            extendCanvasIfNeeded(y);
+        }
 
-        canvas.addEventListener('touchend', () => {
-            clearTimeout(holdTimer);
-            if (isDrawing) { isDrawing = false; saveToLocalStorage(); }
-        });
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+        canvas.addEventListener('touchmove', moveDrawing, { passive: false });
+        canvas.addEventListener('touchend', () => { isDrawing = false; saveToLocalStorage(); });
 
-        // --- 録音・保存 (前回と同じ) ---
+        // 録音処理（プレイヤーなし、保存直結型）
         const recordBtn = document.getElementById('recordBtn');
         const stopBtn = document.getElementById('stopBtn');
+
         recordBtn.onclick = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const mimeType = 'audio/mp4'; 
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
                 mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+                
                 mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/mp4' });
                     const audioUrl = URL.createObjectURL(audioBlob);
-                    audioContainer.innerHTML = `<div class="audio-wrapper"><audio src="${audioUrl}" controls playsinline></audio></div>`;
-                    const link = document.createElement('a'); link.href = audioUrl; link.download = `voice_${Date.now()}.mp4`; link.click();
-                    status.innerText = "保存完了";
+                    
+                    // 直接ダウンロード実行
+                    const link = document.createElement('a');
+                    link.href = audioUrl;
+                    link.download = `voice_${Date.now()}.mp4`;
+                    link.click();
+                    
+                    statusDisplay.innerText = "停止(保存完了)";
+                    statusDisplay.style.color = "#444";
                 };
-                mediaRecorder.start(); recordBtn.disabled = true; stopBtn.disabled = false; status.innerText = "録音中...";
-            } catch (err) { alert(err.message); }
+
+                mediaRecorder.start();
+                recordBtn.disabled = true; stopBtn.disabled = false;
+                statusDisplay.innerText = "● 録音中...";
+                statusDisplay.style.color = "red";
+            } catch (err) { alert("マイク使用を許可してください: " + err.message); }
         };
-        stopBtn.onclick = () => { mediaRecorder.stop(); recordBtn.disabled = false; stopBtn.disabled = true; };
+
+        stopBtn.onclick = () => {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+                recordBtn.disabled = false; stopBtn.disabled = true;
+            }
+        };
+
+        // 画像保存
         document.getElementById('saveBtn').onclick = () => {
-            const link = document.createElement('a'); link.href = canvas.toDataURL("image/jpeg", 0.9);
-            link.download = `memo_${Date.now()}.jpg`; link.click();
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL("image/jpeg", 0.9);
+            link.download = `memo_${Date.now()}.jpg`;
+            link.click();
         };
 
         function saveToLocalStorage() { localStorage.setItem('myMemoData', canvas.toDataURL("image/jpeg", 0.5)); }
@@ -216,8 +197,10 @@
             const savedData = localStorage.getItem('myMemoData');
             if (savedData) { const img = new Image(); img.src = savedData; img.onload = () => ctx.drawImage(img, 0, 0); }
         }
-        document.getElementById('clearBtn').onclick = () => { if(confirm("消去？")) { 
-            ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); saveToLocalStorage(); } 
+        document.getElementById('clearBtn').onclick = () => { if(confirm("消去しますか？")) { 
+            ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); 
+            canvas.height = INITIAL_HEIGHT; ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            setPenStyle(); localStorage.removeItem('myMemoData'); } 
         };
         window.onload = initCanvas;
     </script>
