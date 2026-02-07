@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>録音メモ（一括保存・ペン優先改善版）</title>
+    <title>録音メモ（停止時保存・選択禁止版）</title>
     <style>
         body {
             margin: 0;
@@ -12,9 +12,13 @@
             height: 100vh;
             font-family: sans-serif;
             background: #ddd;
-            overflow: hidden; /* 全体の揺れ防止 */
+            overflow: hidden;
             position: fixed;
             width: 100%;
+            /* 画面全体のテキスト選択や長押しメニューを禁止（誤作動防止） */
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
         }
 
         header {
@@ -34,21 +38,18 @@
             overflow-x: hidden;
             background: #fafafa;
             -webkit-overflow-scrolling: touch;
-            /* ペン使用中にここを操作不可にするための切り替え用 */
             touch-action: pan-y; 
         }
 
         canvas {
             display: block;
             background: #fff;
-            cursor: crosshair;
-            /* 指でのスクロールを許容しつつ、JSで制御する */
-            touch-action: none; 
+            touch-action: none; /* JSで制御するため、ブラウザの自動判断をオフ */
         }
 
         audio { height: 35px; }
         #clearBtn { background-color: #ffcccc; }
-        #status { font-size: 14px; }
+        #status { font-size: 14px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -105,17 +106,13 @@
             }
         }
 
-        // --- パームリジェクション & スクロール制御 ---
+        // --- 描画ロジック ---
         canvas.addEventListener('pointerdown', (e) => {
-            // ペン入力、またはマウス(左クリック)のみを許可
-            if (e.pointerType === "touch") {
-                // 指の場合はスクロールを優先するため描画しない
-                return;
-            }
+            // ペンのみ許可。指はスクロールに回す。
+            if (e.pointerType === "touch") return;
 
             isDrawing = true;
-            // 描画中はコンテナのスクロールを一時的にロック（揺れ防止）
-            container.style.overflowY = 'hidden';
+            container.style.overflowY = 'hidden'; // スクロール一時停止
 
             const rect = canvas.getBoundingClientRect();
             ctx.beginPath();
@@ -124,11 +121,9 @@
 
         canvas.addEventListener('pointermove', (e) => {
             if (!isDrawing) return;
-
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-
             ctx.lineTo(x, y);
             ctx.stroke();
             extendCanvasIfNeeded(y);
@@ -137,48 +132,63 @@
         canvas.addEventListener('pointerup', () => {
             if (!isDrawing) return;
             isDrawing = false;
-            // 描画が終わったらスクロールを復元
-            container.style.overflowY = 'scroll';
+            container.style.overflowY = 'scroll'; // スクロール復帰
             saveToLocalStorage();
         });
 
-        // 指でのスクロールを可能にする設定
-        // Canvas上で指が動いたとき、描画中でなければスクロールさせる
-        canvas.addEventListener('touchstart', (e) => {
-            if (!isDrawing) {
-                // 指1本の場合は標準のスクロール挙動を許可
-                canvas.style.touchAction = 'pan-y';
-            }
-        }, { passive: true });
-
-        // --- 保存機能（画像と音声を両方実行） ---
+        // --- 保存・録音 ---
         saveBtn.addEventListener('click', () => {
-            // 1. メモ（画像）の保存
             const image = canvas.toDataURL("image/png");
-            const linkImg = document.createElement('a');
-            linkImg.href = image;
-            linkImg.download = `memo_${Date.now()}.png`;
-            document.body.appendChild(linkImg);
-            linkImg.click();
-            document.body.removeChild(linkImg);
+            const link = document.createElement('a');
+            link.href = image;
+            link.download = `memo_${Date.now()}.png`;
+            link.click();
+        });
 
-            // 2. 音声の保存（録音データがある場合）
-            if (audioChunks.length > 0) {
-                setTimeout(() => { // 連続ダウンロードのための微小な遅延
+        recordBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const types = ['audio/mp4', 'audio/webm'];
+                recordedMimeType = types.find(type => MediaRecorder.isTypeSupported(type)) || "";
+                mediaRecorder = new MediaRecorder(stream, { mimeType: recordedMimeType });
+                audioChunks = [];
+                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+                
+                mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
                     const audioUrl = URL.createObjectURL(audioBlob);
-                    const linkAudio = document.createElement('a');
-                    linkAudio.href = audioUrl;
+                    
+                    // 1. プレイヤー更新
+                    const oldAudio = header.querySelector('audio');
+                    if (oldAudio) oldAudio.remove();
+                    const audio = document.createElement('audio');
+                    audio.src = audioUrl;
+                    audio.controls = true;
+                    header.appendChild(audio);
+                    
+                    // 2. 自動保存（停止と同時にダウンロード）
+                    const link = document.createElement('a');
+                    link.href = audioUrl;
                     const ext = recordedMimeType.includes('webm') ? 'webm' : 'mp4';
-                    linkAudio.download = `recording_${Date.now()}.${ext}`;
-                    document.body.appendChild(linkAudio);
-                    linkAudio.click();
-                    document.body.removeChild(linkAudio);
-                }, 500);
+                    link.download = `voice_${Date.now()}.${ext}`;
+                    link.click();
+                    
+                    status.innerText = "停止中 (保存済み)";
+                };
+                
+                mediaRecorder.start();
+                recordBtn.disabled = true; stopBtn.disabled = false;
+                status.innerText = "録音中...";
+            } catch (err) { alert("マイクエラー: " + err.message); }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+                recordBtn.disabled = false; stopBtn.disabled = true;
             }
         });
 
-        // --- 録音・その他 ---
         function saveToLocalStorage() { localStorage.setItem('myMemoData', canvas.toDataURL()); }
         function loadFromLocalStorage() {
             const savedData = localStorage.getItem('myMemoData');
@@ -195,38 +205,6 @@
                 canvas.height = INITIAL_HEIGHT;
                 setPenStyle();
                 localStorage.removeItem('myMemoData');
-            }
-        });
-
-        recordBtn.addEventListener('click', async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const types = ['audio/mp4', 'audio/webm'];
-                recordedMimeType = types.find(type => MediaRecorder.isTypeSupported(type)) || "";
-                mediaRecorder = new MediaRecorder(stream, { mimeType: recordedMimeType });
-                audioChunks = [];
-                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
-                    const oldAudio = header.querySelector('audio');
-                    if (oldAudio) oldAudio.remove();
-                    const audio = document.createElement('audio');
-                    audio.src = URL.createObjectURL(audioBlob);
-                    audio.controls = true;
-                    header.appendChild(audio);
-                    status.innerText = "再生準備完了";
-                };
-                mediaRecorder.start();
-                recordBtn.disabled = true; stopBtn.disabled = false;
-                status.innerText = "録音中...";
-            } catch (err) { alert("マイクエラー: " + err.message); }
-        });
-
-        stopBtn.addEventListener('click', () => {
-            if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                mediaRecorder.stop();
-                recordBtn.disabled = false; stopBtn.disabled = true;
-                status.innerText = "停止中";
             }
         });
 
