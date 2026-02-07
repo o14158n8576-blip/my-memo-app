@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>録音メモ（停止時保存・選択禁止版）</title>
+    <title>録音メモ（プロ仕様・JPEG版）</title>
     <style>
         body {
             margin: 0;
@@ -15,7 +15,6 @@
             overflow: hidden;
             position: fixed;
             width: 100%;
-            /* 画面全体のテキスト選択や長押しメニューを禁止（誤作動防止） */
             -webkit-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
@@ -44,12 +43,11 @@
         canvas {
             display: block;
             background: #fff;
-            touch-action: none; /* JSで制御するため、ブラウザの自動判断をオフ */
+            touch-action: none;
         }
 
         audio { height: 35px; }
         #clearBtn { background-color: #ffcccc; }
-        #status { font-size: 14px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -57,7 +55,7 @@
     <header id="app-header">
         <button id="recordBtn">録音開始</button>
         <button id="stopBtn" disabled>停止</button>
-        <button id="saveBtn">メモを保存</button>
+        <button id="saveBtn">メモを保存(JPG)</button>
         <button id="clearBtn">全消去</button>
         <span id="status">停止中</span>
     </header>
@@ -86,6 +84,9 @@
         function initCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = INITIAL_HEIGHT;
+            // JPEG用に背景を白く塗る
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             setPenStyle();
             loadFromLocalStorage();
         }
@@ -101,18 +102,20 @@
             if (y > canvas.height - 1000) {
                 const tempImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 canvas.height += 2000;
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.putImageData(tempImage, 0, 0);
                 setPenStyle();
             }
         }
 
-        // --- 描画ロジック ---
+        // --- 超強化パームリジェクション ---
         canvas.addEventListener('pointerdown', (e) => {
-            // ペンのみ許可。指はスクロールに回す。
-            if (e.pointerType === "touch") return;
-
+            // ペンのみ許可。かつ筆圧が0より大きい場合のみ（手のひら対策）
+            if (e.pointerType !== "pen" && e.pointerType !== "mouse") return;
+            
             isDrawing = true;
-            container.style.overflowY = 'hidden'; // スクロール一時停止
+            container.style.overflowY = 'hidden';
 
             const rect = canvas.getBoundingClientRect();
             ctx.beginPath();
@@ -129,19 +132,23 @@
             extendCanvasIfNeeded(y);
         });
 
-        canvas.addEventListener('pointerup', () => {
+        const stopDrawing = () => {
             if (!isDrawing) return;
             isDrawing = false;
-            container.style.overflowY = 'scroll'; // スクロール復帰
+            container.style.overflowY = 'scroll';
             saveToLocalStorage();
-        });
+        };
+
+        canvas.addEventListener('pointerup', stopDrawing);
+        canvas.addEventListener('pointerleave', stopDrawing);
 
         // --- 保存・録音 ---
         saveBtn.addEventListener('click', () => {
-            const image = canvas.toDataURL("image/png");
+            // JPEG保存（背景白）
+            const image = canvas.toDataURL("image/jpeg", 0.8); // 画質0.8
             const link = document.createElement('a');
             link.href = image;
-            link.download = `memo_${Date.now()}.png`;
+            link.download = `memo_${Date.now()}.jpg`;
             link.click();
         });
 
@@ -158,20 +165,21 @@
                     const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
                     const audioUrl = URL.createObjectURL(audioBlob);
                     
-                    // 1. プレイヤー更新
-                    const oldAudio = header.querySelector('audio');
-                    if (oldAudio) oldAudio.remove();
-                    const audio = document.createElement('audio');
-                    audio.src = audioUrl;
-                    audio.controls = true;
-                    header.appendChild(audio);
-                    
-                    // 2. 自動保存（停止と同時にダウンロード）
-                    const link = document.createElement('a');
-                    link.href = audioUrl;
-                    const ext = recordedMimeType.includes('webm') ? 'webm' : 'mp4';
-                    link.download = `voice_${Date.now()}.${ext}`;
-                    link.click();
+                    // プレイヤーのエラー対策: わずかに遅延させて作成
+                    setTimeout(() => {
+                        const oldAudio = header.querySelector('audio');
+                        if (oldAudio) oldAudio.remove();
+                        const audio = document.createElement('audio');
+                        audio.src = audioUrl;
+                        audio.controls = true;
+                        header.appendChild(audio);
+                        
+                        const link = document.createElement('a');
+                        link.href = audioUrl;
+                        const ext = recordedMimeType.includes('webm') ? 'webm' : 'mp4';
+                        link.download = `voice_${Date.now()}.${ext}`;
+                        link.click();
+                    }, 100);
                     
                     status.innerText = "停止中 (保存済み)";
                 };
@@ -189,7 +197,7 @@
             }
         });
 
-        function saveToLocalStorage() { localStorage.setItem('myMemoData', canvas.toDataURL()); }
+        function saveToLocalStorage() { localStorage.setItem('myMemoData', canvas.toDataURL("image/jpeg", 0.5)); }
         function loadFromLocalStorage() {
             const savedData = localStorage.getItem('myMemoData');
             if (savedData) {
@@ -201,7 +209,8 @@
 
         clearBtn.addEventListener('click', () => {
             if(confirm("すべて消去しますか？")) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 canvas.height = INITIAL_HEIGHT;
                 setPenStyle();
                 localStorage.removeItem('myMemoData');
