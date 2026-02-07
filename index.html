@@ -3,34 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ（純正風操作版）</title>
+    <title>録音メモ（最終安定版）</title>
     <style>
         body {
             margin: 0; display: flex; flex-direction: column; height: 100vh;
-            font-family: sans-serif; background: #ccc; overflow: hidden;
+            font-family: sans-serif; background: #ddd; overflow: hidden;
             position: fixed; width: 100%; -webkit-user-select: none;
         }
         header {
             background: #eee; padding: 10px; display: flex; flex-wrap: wrap;
-            gap: 10px; align-items: center; z-index: 2000; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            gap: 10px; align-items: center; z-index: 2000; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
+        /* モード切替スイッチの見た目 */
+        .mode-selector {
+            display: flex; background: #fff; border-radius: 8px; padding: 2px; border: 1px solid #999;
+        }
+        .mode-btn {
+            padding: 8px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
+        }
+        .active { background: #007aff; color: white; }
+
         #scroll-container {
             flex-grow: 1; overflow-y: scroll; overflow-x: hidden;
             background: #fafafa; -webkit-overflow-scrolling: touch;
-            /* 指2本でのスクロールを許可 */
-            touch-action: pinch-zoom; 
         }
         canvas { display: block; background: #fff; touch-action: none; }
         audio { height: 40px; }
-        #clearBtn { background-color: #ffcccc; }
+        #clearBtn { background-color: #ffcccc; margin-left: auto; }
     </style>
 </head>
 <body>
     <header id="app-header">
+        <div class="mode-selector">
+            <button id="drawModeBtn" class="mode-btn active">🖊 描く</button>
+            <button id="scrollModeBtn" class="mode-btn">✋ 移動</button>
+        </div>
         <button id="recordBtn">録音開始</button>
         <button id="stopBtn" disabled>停止</button>
         <button id="saveBtn">メモ保存(JPG)</button>
-        <button id="clearBtn">全消去</button>
+        <button id="clearBtn">消去</button>
         <span id="status">停止中</span>
     </header>
 
@@ -42,6 +53,8 @@
         const canvas = document.getElementById('memoCanvas');
         const container = document.getElementById('scroll-container');
         const ctx = canvas.getContext('2d', { desynchronized: true });
+        const drawModeBtn = document.getElementById('drawModeBtn');
+        const scrollModeBtn = document.getElementById('scrollModeBtn');
         const recordBtn = document.getElementById('recordBtn');
         const stopBtn = document.getElementById('stopBtn');
         const saveBtn = document.getElementById('saveBtn');
@@ -50,6 +63,7 @@
         const header = document.getElementById('app-header');
 
         let isDrawing = false;
+        let editMode = 'draw'; // 'draw' or 'scroll'
         let mediaRecorder;
         let audioChunks = [];
         const INITIAL_HEIGHT = 4000;
@@ -57,127 +71,92 @@
         function initCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = INITIAL_HEIGHT;
-            fillBackground();
-            setPenStyle();
-            loadFromLocalStorage();
+            fillBackground(); setPenStyle(); loadFromLocalStorage();
         }
 
-        function fillBackground() {
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
+        function fillBackground() { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+        function setPenStyle() { ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#333'; }
 
-        function setPenStyle() {
-            ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#333';
-        }
+        // モード切替
+        drawModeBtn.onclick = () => { editMode = 'draw'; drawModeBtn.classList.add('active'); scrollModeBtn.classList.remove('active'); canvas.style.touchAction = 'none'; };
+        scrollModeBtn.onclick = () => { editMode = 'scroll'; scrollModeBtn.classList.add('active'); drawModeBtn.classList.remove('active'); canvas.style.touchAction = 'pan-y'; };
 
         function extendCanvasIfNeeded(y) {
-            if (y > canvas.height - 1000) {
+            if (y > canvas.height - 800) {
                 const tempImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 canvas.height += 2000; fillBackground();
                 ctx.putImageData(tempImage, 0, 0); setPenStyle();
             }
         }
 
-        // --- 改良版：描画とスクロールの制御 ---
-        canvas.addEventListener('touchstart', (e) => {
-            // 指2本以上の時はスクロールモード（描画しない）
-            if (e.touches.length > 1) {
-                isDrawing = false;
-                return;
-            }
-            // 指1本、またはペンの時は描画開始
+        // 描画処理
+        function startDrawing(e) {
+            if (editMode !== 'draw') return;
             isDrawing = true;
-            const t = e.touches[0];
+            const t = e.touches ? e.touches[0] : e;
             const rect = canvas.getBoundingClientRect();
             ctx.beginPath();
             ctx.moveTo(t.clientX - rect.left, t.clientY - rect.top);
-        }, { passive: false });
+        }
 
-        canvas.addEventListener('touchmove', (e) => {
-            if (!isDrawing || e.touches.length > 1) return;
-            e.preventDefault(); // 1本指の時はスクロールを止める
-            
-            const t = e.touches[0];
+        function moveDrawing(e) {
+            if (!isDrawing || editMode !== 'draw') return;
+            if (e.cancelable) e.preventDefault();
+            const t = e.touches ? e.touches[0] : e;
             const rect = canvas.getBoundingClientRect();
             const x = t.clientX - rect.left;
             const y = t.clientY - rect.top;
-
             ctx.lineTo(x, y); ctx.stroke();
             extendCanvasIfNeeded(y);
-        }, { passive: false });
+        }
 
-        canvas.addEventListener('touchend', () => {
-            if (isDrawing) { isDrawing = false; saveToLocalStorage(); }
-        });
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+        canvas.addEventListener('touchmove', moveDrawing, { passive: false });
+        canvas.addEventListener('touchend', () => { isDrawing = false; saveToLocalStorage(); });
 
-        // --- 録音・プレイヤー修正版 ---
-        recordBtn.addEventListener('click', async () => {
+        // 録音
+        recordBtn.onclick = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mimeType = 'audio/mp4'; 
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
                 mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
-                
-                mediaRecorder.onstop = async () => {
+                mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/mp4' });
                     const audioUrl = URL.createObjectURL(audioBlob);
                     
-                    // プレイヤー作成
                     const oldAudio = header.querySelector('audio');
                     if (oldAudio) oldAudio.remove();
                     const audio = document.createElement('audio');
-                    audio.src = audioUrl;
-                    audio.controls = true;
-                    audio.preload = "auto";
+                    audio.src = audioUrl; audio.controls = true;
                     header.appendChild(audio);
 
-                    // 自動保存
                     const link = document.createElement('a');
-                    link.href = audioUrl;
-                    link.download = `voice_${Date.now()}.mp4`;
+                    link.href = audioUrl; link.download = `voice_${Date.now()}.mp4`;
                     link.click();
-                    
-                    status.innerText = "停止中 (保存済)";
+                    status.innerText = "停止(保存済)";
                 };
-                
                 mediaRecorder.start();
                 recordBtn.disabled = true; stopBtn.disabled = false;
                 status.innerText = "録音中...";
-            } catch (err) { alert("マイクエラー: " + err.message); }
-        });
+            } catch (err) { alert("マイク: " + err.message); }
+        };
 
-        stopBtn.addEventListener('click', () => {
-            if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                mediaRecorder.stop();
-                recordBtn.disabled = false; stopBtn.disabled = true;
-            }
-        });
-
-        saveBtn.addEventListener('click', () => {
-            const image = canvas.toDataURL("image/jpeg", 0.9);
+        stopBtn.onclick = () => { mediaRecorder.stop(); recordBtn.disabled = false; stopBtn.disabled = true; };
+        saveBtn.onclick = () => {
             const link = document.createElement('a');
-            link.href = image;
+            link.href = canvas.toDataURL("image/jpeg", 0.9);
             link.download = `memo_${Date.now()}.jpg`;
             link.click();
-        });
+        };
 
         function saveToLocalStorage() { localStorage.setItem('myMemoData', canvas.toDataURL("image/jpeg", 0.5)); }
         function loadFromLocalStorage() {
             const savedData = localStorage.getItem('myMemoData');
-            if (savedData) {
-                const img = new Image(); img.src = savedData;
-                img.onload = () => ctx.drawImage(img, 0, 0);
-            }
+            if (savedData) { const img = new Image(); img.src = savedData; img.onload = () => ctx.drawImage(img, 0, 0); }
         }
-        clearBtn.addEventListener('click', () => {
-            if(confirm("全消去しますか？")) {
-                fillBackground(); canvas.height = INITIAL_HEIGHT; fillBackground();
-                setPenStyle(); localStorage.removeItem('myMemoData');
-            }
-        });
-        window.addEventListener('load', initCanvas);
+        clearBtn.onclick = () => { if(confirm("消去？")) { fillBackground(); canvas.height = INITIAL_HEIGHT; fillBackground(); setPenStyle(); localStorage.removeItem('myMemoData'); } };
+        window.onload = initCanvas;
     </script>
 </body>
 </html>
