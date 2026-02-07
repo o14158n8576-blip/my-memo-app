@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>録音メモ（スクロール＆プレイヤー修正版）</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>録音メモ（スクロールロック版）</title>
     <style>
         body {
             margin: 0;
@@ -11,14 +11,11 @@
             flex-direction: column;
             height: 100vh;
             font-family: sans-serif;
-            background: #ddd;
+            background: #ccc;
             overflow: hidden;
             position: fixed;
             width: 100%;
-            /* 誤操作防止 */
             -webkit-user-select: none;
-            user-select: none;
-            -webkit-touch-callout: none;
         }
 
         header {
@@ -28,41 +25,30 @@
             flex-wrap: wrap;
             gap: 10px;
             align-items: center;
-            z-index: 1000;
+            z-index: 2000;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
-        /* スクロールエリアの設定 */
         #scroll-container {
             flex-grow: 1;
-            overflow-y: scroll; /* 縦スクロールを許可 */
+            overflow-y: scroll;
             overflow-x: hidden;
             background: #fafafa;
-            -webkit-overflow-scrolling: touch; /* 滑らかなスクロール */
+            -webkit-overflow-scrolling: touch;
+            /* 基本はスクロール可能 */
+            touch-action: pan-y;
         }
 
         canvas {
             display: block;
             background: #fff;
-            cursor: crosshair;
-            /* 重要: 指でのスクロール（pan-y）を許可する設定 */
-            touch-action: pan-y; 
+            /* ブラウザの自動判定を完全に殺し、JSですべて制御する */
+            touch-action: none;
         }
 
         audio { height: 40px; }
         #clearBtn { background-color: #ffcccc; }
-        
-        /* 指で描くモードの切り替えスイッチ */
-        .toggle-container {
-            display: flex;
-            align-items: center;
-            font-size: 12px;
-            background: #fff;
-            padding: 5px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-        }
-        input[type="checkbox"] { margin-right: 5px; }
+        #status { font-size: 14px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -72,11 +58,6 @@
         <button id="stopBtn" disabled>停止</button>
         <button id="saveBtn">メモ保存(JPG)</button>
         <button id="clearBtn">全消去</button>
-        
-        <label class="toggle-container">
-            <input type="checkbox" id="fingerMode">指で描く
-        </label>
-        
         <span id="status">停止中</span>
     </header>
 
@@ -95,13 +76,11 @@
         const clearBtn = document.getElementById('clearBtn');
         const status = document.getElementById('status');
         const header = document.getElementById('app-header');
-        const fingerModeCheckbox = document.getElementById('fingerMode');
 
         let isDrawing = false;
         let mediaRecorder;
         let audioChunks = [];
-        let recordedMimeType = "";
-        const INITIAL_HEIGHT = 3000; 
+        const INITIAL_HEIGHT = 4000;
 
         function initCanvas() {
             canvas.width = window.innerWidth;
@@ -124,117 +103,91 @@
         }
 
         function extendCanvasIfNeeded(y) {
-            // 下端から800px以内に近づいたら伸ばす
-            if (y > canvas.height - 800) {
+            if (y > canvas.height - 1000) {
                 const tempImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                canvas.height += 1500;
-                fillBackground(); // 新しい部分も白く塗る
+                canvas.height += 2000;
+                fillBackground();
                 ctx.putImageData(tempImage, 0, 0);
                 setPenStyle();
             }
         }
 
-        // --- 描画処理（スクロールと描画の分離） ---
-        function getPoint(e) {
-            const rect = canvas.getBoundingClientRect();
-            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-        }
-
+        // --- 強力な判定ロジック ---
         canvas.addEventListener('pointerdown', (e) => {
-            const isFinger = e.pointerType === 'touch';
-            const allowFinger = fingerModeCheckbox.checked;
+            // 指(touch)が触れた場合は何もしない（スクロールを許可）
+            if (e.pointerType === 'touch') return;
 
-            // 「指で描くモード」OFF かつ 指入力なら、描画せずにスクロールさせる
-            if (isFinger && !allowFinger) {
-                return; // ここで何もしないので、ブラウザ標準のスクロールが動く
-            }
-
-            // ペン、または「指で描くモード」ON なら描画を開始
+            // ペン入力の場合のみ実行
             isDrawing = true;
-            e.preventDefault(); // スクロールを止める（描画優先）
             
-            const p = getPoint(e);
+            // 重要：描画中はスクロールを完全に無効化する
+            container.style.overflowY = 'hidden';
+            container.style.touchAction = 'none';
+
+            const rect = canvas.getBoundingClientRect();
             ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
+            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+            
+            // ブラウザのスクロール発動を防止
+            e.preventDefault();
         });
 
         canvas.addEventListener('pointermove', (e) => {
             if (!isDrawing) return;
             
-            // 描画中はスクロールさせない
-            e.preventDefault(); 
-            
-            const p = getPoint(e);
-            ctx.lineTo(p.x, p.y);
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            ctx.lineTo(x, y);
             ctx.stroke();
-            extendCanvasIfNeeded(p.y);
+            extendCanvasIfNeeded(y);
+            
+            e.preventDefault();
         });
 
-        const stopDrawing = () => {
+        const finishDrawing = (e) => {
             if (isDrawing) {
                 isDrawing = false;
+                // 描画が終わったらスクロールを再度有効化
+                container.style.overflowY = 'scroll';
+                container.style.touchAction = 'pan-y';
                 saveToLocalStorage();
             }
         };
 
-        canvas.addEventListener('pointerup', stopDrawing);
-        canvas.addEventListener('pointercancel', stopDrawing);
+        canvas.addEventListener('pointerup', finishDrawing);
+        canvas.addEventListener('pointerleave', finishDrawing);
+        canvas.addEventListener('pointercancel', finishDrawing);
 
-        // --- 録音・保存機能 ---
+        // --- 録音・保存 (修正済みの安定版) ---
         recordBtn.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                // iPad用のMIMEタイプ設定
-                let options = {};
-                if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                    options = { mimeType: 'audio/mp4' };
-                    recordedMimeType = 'audio/mp4';
-                } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-                    options = { mimeType: 'audio/webm' };
-                    recordedMimeType = 'audio/webm';
-                } else {
-                    recordedMimeType = ''; // ブラウザにお任せ
-                }
-
-                mediaRecorder = new MediaRecorder(stream, options);
+                const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm';
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
                 audioChunks = [];
-                
-                mediaRecorder.ondataavailable = (e) => {
-                    if (e.data.size > 0) audioChunks.push(e.data);
-                };
+                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
                 
                 mediaRecorder.onstop = () => {
-                    // Blob生成時の型指定を確実に
-                    const type = recordedMimeType || 'audio/mp4';
-                    const audioBlob = new Blob(audioChunks, { type: type });
+                    const audioBlob = new Blob(audioChunks, { type: mimeType });
                     const audioUrl = URL.createObjectURL(audioBlob);
                     
                     setTimeout(() => {
                         const oldAudio = header.querySelector('audio');
                         if (oldAudio) oldAudio.remove();
-                        
                         const audio = document.createElement('audio');
                         audio.src = audioUrl;
                         audio.controls = true;
-                        // iOSでの再生エラー防止用属性
-                        audio.setAttribute('playsinline', ''); 
-                        audio.setAttribute('webkit-playsinline', '');
-                        audio.preload = 'auto';
-                        
+                        audio.setAttribute('playsinline', '');
                         header.appendChild(audio);
                         
-                        // 自動保存
                         const link = document.createElement('a');
                         link.href = audioUrl;
-                        const ext = type.includes('webm') ? 'webm' : 'mp4';
-                        link.download = `voice_${Date.now()}.${ext}`;
-                        document.body.appendChild(link);
+                        link.download = `voice_${Date.now()}.${mimeType.includes('mp4') ? 'mp4' : 'webm'}`;
                         link.click();
-                        document.body.removeChild(link);
-                        
                         status.innerText = "停止中 (保存済)";
-                    }, 100);
+                    }, 200);
                 };
                 
                 mediaRecorder.start();
@@ -250,18 +203,14 @@
             }
         });
 
-        // メモのみ保存（JPEG）
         saveBtn.addEventListener('click', () => {
             const image = canvas.toDataURL("image/jpeg", 0.9);
             const link = document.createElement('a');
             link.href = image;
             link.download = `memo_${Date.now()}.jpg`;
-            document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
         });
 
-        // --- データ復元など ---
         function saveToLocalStorage() { localStorage.setItem('myMemoData', canvas.toDataURL("image/jpeg", 0.5)); }
         function loadFromLocalStorage() {
             const savedData = localStorage.getItem('myMemoData');
