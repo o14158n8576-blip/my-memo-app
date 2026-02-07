@@ -3,56 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ（スクロールロック版）</title>
+    <title>録音メモ（純正風操作版）</title>
     <style>
         body {
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            font-family: sans-serif;
-            background: #ccc;
-            overflow: hidden;
-            position: fixed;
-            width: 100%;
-            -webkit-user-select: none;
+            margin: 0; display: flex; flex-direction: column; height: 100vh;
+            font-family: sans-serif; background: #ccc; overflow: hidden;
+            position: fixed; width: 100%; -webkit-user-select: none;
         }
-
         header {
-            background: #eee;
-            padding: 10px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-            z-index: 2000;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background: #eee; padding: 10px; display: flex; flex-wrap: wrap;
+            gap: 10px; align-items: center; z-index: 2000; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-
         #scroll-container {
-            flex-grow: 1;
-            overflow-y: scroll;
-            overflow-x: hidden;
-            background: #fafafa;
-            -webkit-overflow-scrolling: touch;
-            /* 基本はスクロール可能 */
-            touch-action: pan-y;
+            flex-grow: 1; overflow-y: scroll; overflow-x: hidden;
+            background: #fafafa; -webkit-overflow-scrolling: touch;
+            /* 指2本でのスクロールを許可 */
+            touch-action: pinch-zoom; 
         }
-
-        canvas {
-            display: block;
-            background: #fff;
-            /* ブラウザの自動判定を完全に殺し、JSですべて制御する */
-            touch-action: none;
-        }
-
+        canvas { display: block; background: #fff; touch-action: none; }
         audio { height: 40px; }
         #clearBtn { background-color: #ffcccc; }
-        #status { font-size: 14px; font-weight: bold; }
     </style>
 </head>
 <body>
-
     <header id="app-header">
         <button id="recordBtn">録音開始</button>
         <button id="stopBtn" disabled>停止</button>
@@ -69,7 +42,6 @@
         const canvas = document.getElementById('memoCanvas');
         const container = document.getElementById('scroll-container');
         const ctx = canvas.getContext('2d', { desynchronized: true });
-        
         const recordBtn = document.getElementById('recordBtn');
         const stopBtn = document.getElementById('stopBtn');
         const saveBtn = document.getElementById('saveBtn');
@@ -96,98 +68,78 @@
         }
 
         function setPenStyle() {
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#333';
         }
 
         function extendCanvasIfNeeded(y) {
             if (y > canvas.height - 1000) {
                 const tempImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                canvas.height += 2000;
-                fillBackground();
-                ctx.putImageData(tempImage, 0, 0);
-                setPenStyle();
+                canvas.height += 2000; fillBackground();
+                ctx.putImageData(tempImage, 0, 0); setPenStyle();
             }
         }
 
-        // --- 強力な判定ロジック ---
-        canvas.addEventListener('pointerdown', (e) => {
-            // 指(touch)が触れた場合は何もしない（スクロールを許可）
-            if (e.pointerType === 'touch') return;
-
-            // ペン入力の場合のみ実行
+        // --- 改良版：描画とスクロールの制御 ---
+        canvas.addEventListener('touchstart', (e) => {
+            // 指2本以上の時はスクロールモード（描画しない）
+            if (e.touches.length > 1) {
+                isDrawing = false;
+                return;
+            }
+            // 指1本、またはペンの時は描画開始
             isDrawing = true;
-            
-            // 重要：描画中はスクロールを完全に無効化する
-            container.style.overflowY = 'hidden';
-            container.style.touchAction = 'none';
-
+            const t = e.touches[0];
             const rect = canvas.getBoundingClientRect();
             ctx.beginPath();
-            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-            
-            // ブラウザのスクロール発動を防止
-            e.preventDefault();
-        });
+            ctx.moveTo(t.clientX - rect.left, t.clientY - rect.top);
+        }, { passive: false });
 
-        canvas.addEventListener('pointermove', (e) => {
-            if (!isDrawing) return;
+        canvas.addEventListener('touchmove', (e) => {
+            if (!isDrawing || e.touches.length > 1) return;
+            e.preventDefault(); // 1本指の時はスクロールを止める
             
+            const t = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const x = t.clientX - rect.left;
+            const y = t.clientY - rect.top;
 
-            ctx.lineTo(x, y);
-            ctx.stroke();
+            ctx.lineTo(x, y); ctx.stroke();
             extendCanvasIfNeeded(y);
-            
-            e.preventDefault();
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+            if (isDrawing) { isDrawing = false; saveToLocalStorage(); }
         });
 
-        const finishDrawing = (e) => {
-            if (isDrawing) {
-                isDrawing = false;
-                // 描画が終わったらスクロールを再度有効化
-                container.style.overflowY = 'scroll';
-                container.style.touchAction = 'pan-y';
-                saveToLocalStorage();
-            }
-        };
-
-        canvas.addEventListener('pointerup', finishDrawing);
-        canvas.addEventListener('pointerleave', finishDrawing);
-        canvas.addEventListener('pointercancel', finishDrawing);
-
-        // --- 録音・保存 (修正済みの安定版) ---
+        // --- 録音・プレイヤー修正版 ---
         recordBtn.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm';
-                mediaRecorder = new MediaRecorder(stream, { mimeType });
+                const mimeType = 'audio/mp4'; 
+                mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
                 mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
                 
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: mimeType });
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/mp4' });
                     const audioUrl = URL.createObjectURL(audioBlob);
                     
-                    setTimeout(() => {
-                        const oldAudio = header.querySelector('audio');
-                        if (oldAudio) oldAudio.remove();
-                        const audio = document.createElement('audio');
-                        audio.src = audioUrl;
-                        audio.controls = true;
-                        audio.setAttribute('playsinline', '');
-                        header.appendChild(audio);
-                        
-                        const link = document.createElement('a');
-                        link.href = audioUrl;
-                        link.download = `voice_${Date.now()}.${mimeType.includes('mp4') ? 'mp4' : 'webm'}`;
-                        link.click();
-                        status.innerText = "停止中 (保存済)";
-                    }, 200);
+                    // プレイヤー作成
+                    const oldAudio = header.querySelector('audio');
+                    if (oldAudio) oldAudio.remove();
+                    const audio = document.createElement('audio');
+                    audio.src = audioUrl;
+                    audio.controls = true;
+                    audio.preload = "auto";
+                    header.appendChild(audio);
+
+                    // 自動保存
+                    const link = document.createElement('a');
+                    link.href = audioUrl;
+                    link.download = `voice_${Date.now()}.mp4`;
+                    link.click();
+                    
+                    status.innerText = "停止中 (保存済)";
                 };
                 
                 mediaRecorder.start();
@@ -215,22 +167,16 @@
         function loadFromLocalStorage() {
             const savedData = localStorage.getItem('myMemoData');
             if (savedData) {
-                const img = new Image();
-                img.src = savedData;
+                const img = new Image(); img.src = savedData;
                 img.onload = () => ctx.drawImage(img, 0, 0);
             }
         }
-
         clearBtn.addEventListener('click', () => {
             if(confirm("全消去しますか？")) {
-                fillBackground();
-                canvas.height = INITIAL_HEIGHT;
-                fillBackground();
-                setPenStyle();
-                localStorage.removeItem('myMemoData');
+                fillBackground(); canvas.height = INITIAL_HEIGHT; fillBackground();
+                setPenStyle(); localStorage.removeItem('myMemoData');
             }
         });
-
         window.addEventListener('load', initCanvas);
     </script>
 </body>
