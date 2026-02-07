@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>録音メモ（プロ仕様・JPEG版）</title>
+    <title>録音メモ（スクロール＆プレイヤー修正版）</title>
     <style>
         body {
             margin: 0;
@@ -15,6 +15,7 @@
             overflow: hidden;
             position: fixed;
             width: 100%;
+            /* 誤操作防止 */
             -webkit-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
@@ -31,23 +32,37 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
+        /* スクロールエリアの設定 */
         #scroll-container {
             flex-grow: 1;
-            overflow-y: scroll;
+            overflow-y: scroll; /* 縦スクロールを許可 */
             overflow-x: hidden;
             background: #fafafa;
-            -webkit-overflow-scrolling: touch;
-            touch-action: pan-y; 
+            -webkit-overflow-scrolling: touch; /* 滑らかなスクロール */
         }
 
         canvas {
             display: block;
             background: #fff;
-            touch-action: none;
+            cursor: crosshair;
+            /* 重要: 指でのスクロール（pan-y）を許可する設定 */
+            touch-action: pan-y; 
         }
 
-        audio { height: 35px; }
+        audio { height: 40px; }
         #clearBtn { background-color: #ffcccc; }
+        
+        /* 指で描くモードの切り替えスイッチ */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            background: #fff;
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        input[type="checkbox"] { margin-right: 5px; }
     </style>
 </head>
 <body>
@@ -55,8 +70,13 @@
     <header id="app-header">
         <button id="recordBtn">録音開始</button>
         <button id="stopBtn" disabled>停止</button>
-        <button id="saveBtn">メモを保存(JPG)</button>
+        <button id="saveBtn">メモ保存(JPG)</button>
         <button id="clearBtn">全消去</button>
+        
+        <label class="toggle-container">
+            <input type="checkbox" id="fingerMode">指で描く
+        </label>
+        
         <span id="status">停止中</span>
     </header>
 
@@ -68,27 +88,32 @@
         const canvas = document.getElementById('memoCanvas');
         const container = document.getElementById('scroll-container');
         const ctx = canvas.getContext('2d', { desynchronized: true });
+        
         const recordBtn = document.getElementById('recordBtn');
         const stopBtn = document.getElementById('stopBtn');
         const saveBtn = document.getElementById('saveBtn');
         const clearBtn = document.getElementById('clearBtn');
         const status = document.getElementById('status');
         const header = document.getElementById('app-header');
+        const fingerModeCheckbox = document.getElementById('fingerMode');
 
         let isDrawing = false;
         let mediaRecorder;
         let audioChunks = [];
         let recordedMimeType = "";
-        const INITIAL_HEIGHT = 4000; 
+        const INITIAL_HEIGHT = 3000; 
 
         function initCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = INITIAL_HEIGHT;
-            // JPEG用に背景を白く塗る
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            fillBackground();
             setPenStyle();
             loadFromLocalStorage();
+        }
+
+        function fillBackground() {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
         function setPenStyle() {
@@ -99,89 +124,117 @@
         }
 
         function extendCanvasIfNeeded(y) {
-            if (y > canvas.height - 1000) {
+            // 下端から800px以内に近づいたら伸ばす
+            if (y > canvas.height - 800) {
                 const tempImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                canvas.height += 2000;
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                canvas.height += 1500;
+                fillBackground(); // 新しい部分も白く塗る
                 ctx.putImageData(tempImage, 0, 0);
                 setPenStyle();
             }
         }
 
-        // --- 超強化パームリジェクション ---
-        canvas.addEventListener('pointerdown', (e) => {
-            // ペンのみ許可。かつ筆圧が0より大きい場合のみ（手のひら対策）
-            if (e.pointerType !== "pen" && e.pointerType !== "mouse") return;
-            
-            isDrawing = true;
-            container.style.overflowY = 'hidden';
-
+        // --- 描画処理（スクロールと描画の分離） ---
+        function getPoint(e) {
             const rect = canvas.getBoundingClientRect();
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
+
+        canvas.addEventListener('pointerdown', (e) => {
+            const isFinger = e.pointerType === 'touch';
+            const allowFinger = fingerModeCheckbox.checked;
+
+            // 「指で描くモード」OFF かつ 指入力なら、描画せずにスクロールさせる
+            if (isFinger && !allowFinger) {
+                return; // ここで何もしないので、ブラウザ標準のスクロールが動く
+            }
+
+            // ペン、または「指で描くモード」ON なら描画を開始
+            isDrawing = true;
+            e.preventDefault(); // スクロールを止める（描画優先）
+            
+            const p = getPoint(e);
             ctx.beginPath();
-            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+            ctx.moveTo(p.x, p.y);
         });
 
         canvas.addEventListener('pointermove', (e) => {
             if (!isDrawing) return;
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            ctx.lineTo(x, y);
+            
+            // 描画中はスクロールさせない
+            e.preventDefault(); 
+            
+            const p = getPoint(e);
+            ctx.lineTo(p.x, p.y);
             ctx.stroke();
-            extendCanvasIfNeeded(y);
+            extendCanvasIfNeeded(p.y);
         });
 
         const stopDrawing = () => {
-            if (!isDrawing) return;
-            isDrawing = false;
-            container.style.overflowY = 'scroll';
-            saveToLocalStorage();
+            if (isDrawing) {
+                isDrawing = false;
+                saveToLocalStorage();
+            }
         };
 
         canvas.addEventListener('pointerup', stopDrawing);
-        canvas.addEventListener('pointerleave', stopDrawing);
+        canvas.addEventListener('pointercancel', stopDrawing);
 
-        // --- 保存・録音 ---
-        saveBtn.addEventListener('click', () => {
-            // JPEG保存（背景白）
-            const image = canvas.toDataURL("image/jpeg", 0.8); // 画質0.8
-            const link = document.createElement('a');
-            link.href = image;
-            link.download = `memo_${Date.now()}.jpg`;
-            link.click();
-        });
-
+        // --- 録音・保存機能 ---
         recordBtn.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const types = ['audio/mp4', 'audio/webm'];
-                recordedMimeType = types.find(type => MediaRecorder.isTypeSupported(type)) || "";
-                mediaRecorder = new MediaRecorder(stream, { mimeType: recordedMimeType });
+                
+                // iPad用のMIMEタイプ設定
+                let options = {};
+                if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                    options = { mimeType: 'audio/mp4' };
+                    recordedMimeType = 'audio/mp4';
+                } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                    options = { mimeType: 'audio/webm' };
+                    recordedMimeType = 'audio/webm';
+                } else {
+                    recordedMimeType = ''; // ブラウザにお任せ
+                }
+
+                mediaRecorder = new MediaRecorder(stream, options);
                 audioChunks = [];
-                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) audioChunks.push(e.data);
+                };
                 
                 mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
+                    // Blob生成時の型指定を確実に
+                    const type = recordedMimeType || 'audio/mp4';
+                    const audioBlob = new Blob(audioChunks, { type: type });
                     const audioUrl = URL.createObjectURL(audioBlob);
                     
-                    // プレイヤーのエラー対策: わずかに遅延させて作成
                     setTimeout(() => {
                         const oldAudio = header.querySelector('audio');
                         if (oldAudio) oldAudio.remove();
+                        
                         const audio = document.createElement('audio');
                         audio.src = audioUrl;
                         audio.controls = true;
+                        // iOSでの再生エラー防止用属性
+                        audio.setAttribute('playsinline', ''); 
+                        audio.setAttribute('webkit-playsinline', '');
+                        audio.preload = 'auto';
+                        
                         header.appendChild(audio);
                         
+                        // 自動保存
                         const link = document.createElement('a');
                         link.href = audioUrl;
-                        const ext = recordedMimeType.includes('webm') ? 'webm' : 'mp4';
+                        const ext = type.includes('webm') ? 'webm' : 'mp4';
                         link.download = `voice_${Date.now()}.${ext}`;
+                        document.body.appendChild(link);
                         link.click();
+                        document.body.removeChild(link);
+                        
+                        status.innerText = "停止中 (保存済)";
                     }, 100);
-                    
-                    status.innerText = "停止中 (保存済み)";
                 };
                 
                 mediaRecorder.start();
@@ -197,6 +250,18 @@
             }
         });
 
+        // メモのみ保存（JPEG）
+        saveBtn.addEventListener('click', () => {
+            const image = canvas.toDataURL("image/jpeg", 0.9);
+            const link = document.createElement('a');
+            link.href = image;
+            link.download = `memo_${Date.now()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // --- データ復元など ---
         function saveToLocalStorage() { localStorage.setItem('myMemoData', canvas.toDataURL("image/jpeg", 0.5)); }
         function loadFromLocalStorage() {
             const savedData = localStorage.getItem('myMemoData');
@@ -208,10 +273,10 @@
         }
 
         clearBtn.addEventListener('click', () => {
-            if(confirm("すべて消去しますか？")) {
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if(confirm("全消去しますか？")) {
+                fillBackground();
                 canvas.height = INITIAL_HEIGHT;
+                fillBackground();
                 setPenStyle();
                 localStorage.removeItem('myMemoData');
             }
