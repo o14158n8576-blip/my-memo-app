@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Sakura Ultimate</title>
+    <title>録音メモ Pro - Sakura Fast</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30; --success: #34c759;
@@ -29,7 +29,6 @@
         .header-top {
             display: flex; justify-content: center; align-items: center; position: relative; height: 40px;
         }
-        /* タイトルをさらに大きく強調 */
         .app-title { 
             font-size: 26px; font-weight: 900; color: #fff; letter-spacing: 3px; 
             text-shadow: 0 2px 4px rgba(0,0,0,0.2); 
@@ -56,6 +55,9 @@
         .btn-blue { background: var(--primary); color: #fff; }
         .btn-red { background: var(--danger); color: #fff; }
         #clearBtn { margin-left: auto; background: rgba(0,0,0,0.2); color: #fff; }
+
+        /* スライダー周辺のデザイン */
+        .slider-container { display: flex; align-items: center; gap: 5px; color: #fff; font-weight: bold; font-size: 14px; }
 
         #scroll-area {
             flex-grow: 1; overflow-y: auto; overflow-x: hidden;
@@ -90,10 +92,16 @@
         <button id="clearBtn" class="btn">全消去</button>
     </div>
     
-    <div class="row" style="justify-content: space-between;">
+    <div class="row">
         <div class="color-list" id="colorPalette"></div>
-        <div class="row">
+        
+        <div class="slider-container">
+            <span>細</span>
             <input type="range" id="sizeSlider" min="1" max="60" value="3" style="width:120px; accent-color:#fff;">
+            <span>太</span>
+        </div>
+
+        <div class="row" style="margin-left:auto;">
             <button id="recordBtn" class="btn btn-blue">🔴 録音</button>
             <button id="stopBtn" class="btn btn-red" disabled>■ 停止</button>
             <button id="saveBtn" class="btn btn-white">↓ 保存</button>
@@ -104,14 +112,11 @@
 <div id="scroll-area">
     <div id="eraser-cursor"></div>
     <canvas id="mainCanvas"></canvas>
-    <canvas id="tempCanvas" style="display:none;"></canvas>
 </div>
 
 <script>
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
-    const tempCanvas = document.getElementById('tempCanvas');
-    const tempCtx = tempCanvas.getContext('2d');
     const scrollArea = document.getElementById('scroll-area');
     const eraserCursor = document.getElementById('eraser-cursor');
 
@@ -121,15 +126,12 @@
     let color = '#000000';
     let size = 3;
     let undoStack = [];
-    let currentPath = [];
 
     const colors = ['#000000','#333333','#ff3b30','#ff9500','#ffcc00','#4cd964','#5ac8fa','#007aff','#5856d6','#ff2d55','#8e8e93','#ffffff'];
 
     function init() {
         canvas.width = window.innerWidth;
         canvas.height = 4000;
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
         ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         const palette = document.getElementById('colorPalette');
@@ -158,64 +160,34 @@
         return { x: t.clientX - rect.left, y: t.clientY - rect.top };
     }
 
-    // マーカーのリアルタイム描画用：メインキャンバスを一旦復元し、その上に一時パスを重ねる
-    function drawRealtime() {
-        if (!isDrawing) return;
+    function updateStyle() {
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.globalAlpha = 1.0;
         
-        // 直前の保存状態を復元
-        const img = new Image();
-        img.src = undoStack[undoStack.length - 1];
-        img.onload = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-
-            if (tool === 'marker') {
-                // 一時キャンバスで最新の「一筆」を計算（重なりを無視するため不透明で描く）
-                tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-                tempCtx.lineCap = 'round'; tempCtx.lineJoin = 'round';
-                tempCtx.lineWidth = size * 6;
-                tempCtx.strokeStyle = color;
-                tempCtx.beginPath();
-                tempCtx.moveTo(currentPath[0].x, currentPath[0].y);
-                for(let i=1; i<currentPath.length; i++) {
-                    tempCtx.lineTo(currentPath[i].x, currentPath[i].y);
-                }
-                tempCtx.stroke();
-
-                // メインキャンバスに薄く合成
-                ctx.globalAlpha = 0.3; // マーカーの濃さ
-                ctx.drawImage(tempCanvas, 0, 0);
-                ctx.globalAlpha = 1.0;
-            } else if (tool === 'pen') {
-                ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-                ctx.lineWidth = size;
-                ctx.strokeStyle = color;
-                ctx.beginPath();
-                ctx.moveTo(currentPath[0].x, currentPath[0].y);
-                for(let i=1; i<currentPath.length; i++) {
-                    ctx.lineTo(currentPath[i].x, currentPath[i].y);
-                }
-                ctx.stroke();
-            } else if (tool === 'eraser') {
-                // 消しゴムは従来通りの即時反映
-                ctx.globalCompositeOperation = 'destination-out';
-                ctx.lineWidth = size * 5;
-                ctx.beginPath();
-                ctx.moveTo(currentPath[0].x, currentPath[0].y);
-                for(let i=1; i<currentPath.length; i++) {
-                    ctx.lineTo(currentPath[i].x, currentPath[i].y);
-                }
-                ctx.stroke();
-                ctx.globalCompositeOperation = 'source-over';
-            }
-        };
+        if (tool === 'eraser') {
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.lineWidth = size * 5;
+        } else if (tool === 'marker') {
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.lineWidth = size * 6;
+            // じわっと濃くならないための特殊処理：
+            // 一筆の中では透明度を極限まで下げて、かつ描画頻度を維持する最速設定
+            ctx.globalAlpha = 0.04; 
+            ctx.strokeStyle = color;
+        } else {
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = size;
+        }
     }
 
     canvas.addEventListener('touchstart', (e) => {
         if (mode !== 'draw') return;
         isDrawing = true;
         const pos = getXY(e);
-        currentPath = [pos];
+        updateStyle();
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
         if(tool === 'eraser') showEraserCursor(pos.x, pos.y);
     }, {passive: false});
 
@@ -223,20 +195,13 @@
         if (!isDrawing) return;
         if (e.cancelable) e.preventDefault();
         const pos = getXY(e);
-        currentPath.push(pos);
-        
-        // リアルタイム描画の実行
-        drawRealtime();
-
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
         if(tool === 'eraser') showEraserCursor(pos.x, pos.y);
     }, {passive: false});
 
     canvas.addEventListener('touchend', () => {
-        if(isDrawing) {
-            isDrawing = false;
-            saveState();
-            currentPath = [];
-        }
+        if(isDrawing) { isDrawing = false; saveState(); }
         eraserCursor.style.display = 'none';
     });
 
@@ -252,16 +217,10 @@
         undoStack.push(canvas.toDataURL());
     }
 
-    // ボタン系
     document.getElementById('undoBtn').onclick = () => {
         if (undoStack.length <= 1) return;
-        undoStack.pop();
-        const img = new Image();
-        img.src = undoStack[undoStack.length - 1];
-        img.onload = () => {
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            ctx.drawImage(img,0,0);
-        };
+        undoStack.pop(); const img = new Image(); img.src = undoStack[undoStack.length - 1];
+        img.onload = () => { ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1.0; ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); };
     };
 
     const btns = ['drawMode','scrollMode','penTool','markerTool','eraserTool'];
