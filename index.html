@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Modern UI</title>
+    <title>録音メモ Pro - Sakura UI</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30; --success: #34c759;
-            --bg-app: #f2f2f7; --bg-panel: rgba(255,255,255,0.85);
+            --bg-app: #f2f2f7;
+            /* 桜色のヘッダー背景（少し透過） */
+            --bg-header-sakura: rgba(255, 228, 225, 0.95);
             --text-color: #1c1c1e;
         }
         body {
@@ -16,54 +18,52 @@
             background: var(--bg-app); overflow: hidden; color: var(--text-color);
         }
 
-        /* --- プロ仕様のフローティングヘッダー --- */
+        /* --- ヘッダーデザイン --- */
         header {
             position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
             padding: 12px 16px;
-            /* 背景を少し透過させてモダンに */
-            background: var(--bg-panel); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            background: var(--bg-header-sakura); /* 桜色を適用 */
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             border-bottom: 1px solid rgba(0,0,0,0.05);
             display: flex; flex-direction: column; gap: 12px;
         }
         .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-start; }
 
-        /* セグメントコントロール風ボタン */
-        .segmented-control {
-            display: flex; background: rgba(118, 118, 128, 0.12); border-radius: 9px; padding: 2px;
+        /* タイトルデザイン */
+        .app-title {
+            font-size: 20px; font-weight: 800; color: #000;
+            text-align: center; flex-grow: 1; /* 中央に配置されるようスペースを埋める */
+            letter-spacing: 1px;
         }
+
+        /* セグメントコントロール */
+        .segmented-control { display: flex; background: rgba(118, 118, 128, 0.12); border-radius: 9px; padding: 2px; }
         .mode-btn {
             padding: 8px 14px; border: none; border-radius: 7px; font-weight: 600; font-size: 14px;
             background: none; color: var(--text-color); transition: all 0.2s ease; flex-grow: 1; text-align: center;
         }
-        .mode-btn.active {
-            background: #fff; color: #000; box-shadow: 0 3px 8px rgba(0,0,0,0.12);
-        }
+        .mode-btn.active { background: #fff; color: #000; box-shadow: 0 3px 8px rgba(0,0,0,0.12); }
 
         /* カラーパレット */
         .color-list { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px; align-items: center;}
         .color-dot {
             width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1);
-            flex-shrink: 0; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); position: relative;
+            flex-shrink: 0; transition: all 0.2s; position: relative;
         }
-        /* 選択時のエフェクトをリッチに */
-        .color-dot.active {
-            transform: scale(1.2); border: none;
-            box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--primary);
-        }
+        .color-dot.active { transform: scale(1.2); border: none; box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--primary); }
 
-        /* アクションボタン */
+        /* ボタン */
         button.btn {
             padding: 10px 16px; border-radius: 12px; border: none; font-weight: 700; font-size: 14px;
             cursor: pointer; transition: transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center;
         }
         button.btn:active { transform: scale(0.96); opacity: 0.8; }
-        .btn-blue { background: var(--primary); color: #fff; box-shadow: 0 4px 10px rgba(0,122,255,0.2); }
-        .btn-red { background: var(--danger); color: #fff; box-shadow: 0 4px 10px rgba(255,59,48,0.2); }
+        .btn-blue { background: var(--primary); color: #fff; }
+        .btn-red { background: var(--danger); color: #fff; }
         .btn-gray { background: rgba(118, 118, 128, 0.12); color: var(--text-color); }
-        #clearBtn { margin-left: auto; color: var(--danger); background: rgba(255,59,48,0.1); }
+        #clearBtn { color: var(--danger); background: rgba(255,59,48,0.1); }
 
-        /* ステータスとスライダー */
         #status { font-size: 12px; font-weight: 700; color: #8e8e93; min-width: 60px; text-align: center;}
         input[type=range] { accent-color: var(--text-color); }
 
@@ -71,12 +71,9 @@
         #scroll-area {
             flex-grow: 1; overflow-y: auto; overflow-x: hidden;
             -webkit-overflow-scrolling: touch; background: #fff; position: relative;
-            /* ヘッダーの高さ分だけ下にずらす */
             margin-top: 110px; 
         }
         canvas { background: #fff; display: block; margin: 0 auto; touch-action: none; cursor: crosshair; }
-        
-        /* 消しゴムガイド */
         #eraser-cursor {
             position: absolute; border: 2px solid rgba(0,0,0,0.3); background: rgba(255,255,255,0.2);
             border-radius: 50%; pointer-events: none; display: none; z-index: 500;
@@ -95,9 +92,12 @@
             <button id="penTool" class="mode-btn active">ペン</button>
             <button id="markerTool" class="mode-btn">マーカー</button>
             <button id="eraserTool" class="mode-btn">消しゴム</button>
-        </div>
+        </</div>
         <button id="undoBtn" class="btn btn-gray">↩️</button>
-        <div style="flex-grow:1"></div> <button id="clearBtn" class="btn">全消去</button>
+        
+        <div class="app-title">メモ＆録音</div>
+        
+        <button id="clearBtn" class="btn">全消去</button>
     </div>
     
     <div class="row" style="justify-content: space-between;">
@@ -127,6 +127,10 @@
 <script>
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
+    // マーカー専用の裏キャンバスを作成
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+
     const scrollArea = document.getElementById('scroll-area');
     const eraserCursor = document.getElementById('eraser-cursor');
     const status = document.getElementById('status');
@@ -138,12 +142,15 @@
     let size = 3;
     let undoStack = [];
 
-    // 白を含むカラーパレット
     const colors = ['#000000','#333333','#ff3b30','#ff9500','#ffcc00','#4cd964','#5ac8fa','#007aff','#5856d6','#ff2d55','#8e8e93','#ffffff'];
 
     function init() {
         canvas.width = window.innerWidth;
         canvas.height = 4000;
+        // 裏キャンバスも同じサイズに
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+
         ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         const palette = document.getElementById('colorPalette');
@@ -151,9 +158,7 @@
             const dot = document.createElement('div');
             dot.className = 'color-dot' + (c === '#000000' ? ' active' : '');
             dot.style.background = c;
-            // 白色のドットは見えにくいので枠線を濃くする
             if(c === '#ffffff') dot.style.border = '1px solid #ccc';
-            
             dot.onclick = () => {
                 color = c;
                 document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
@@ -162,7 +167,6 @@
             palette.appendChild(dot);
         });
         saveState();
-        // ヘッダーの高さに応じてスクロールエリアの位置を調整
         scrollArea.style.marginTop = document.querySelector('header').offsetHeight + 'px';
     }
 
@@ -172,29 +176,24 @@
         return { x: t.clientX - rect.left, y: t.clientY - rect.top };
     }
 
-    // --- マーカーの挙動修正（重要） ---
-    function updateStyle() {
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        if (tool === 'eraser') {
-            ctx.globalCompositeOperation = 'destination-out';
-            ctx.lineWidth = size * 5;
-        } else if (tool === 'marker') {
-            // マーカーは「一定の薄さ」を保つため、source-overで薄い色を塗る方式に変更
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.lineWidth = size * 6;
-            
-            // 色を非常に薄くする (RGBAで透明度0.15を指定)
-            const hex = color.replace('#','');
-            const r = parseInt(hex.substring(0,2), 16);
-            const g = parseInt(hex.substring(2,4), 16);
-            const b = parseInt(hex.substring(4,6), 16);
-            // 透明度を0.15に設定（かなり薄く、重ねても濃くなりにくい）
-            ctx.strokeStyle = `rgba(${r},${g},${b}, 0.15)`;
+    // --- 描画スタイルの設定 ---
+    function updateStyle(targetCtx) {
+        targetCtx.lineCap = 'round'; targetCtx.lineJoin = 'round';
+        // 一旦リセット
+        targetCtx.globalAlpha = 1.0;
+        targetCtx.globalCompositeOperation = 'source-over';
 
+        if (tool === 'eraser') {
+            targetCtx.globalCompositeOperation = 'destination-out';
+            targetCtx.lineWidth = size * 5;
+        } else if (tool === 'marker') {
+            // マーカーは裏キャンバスに「不透明」で描く
+            targetCtx.lineWidth = size * 6;
+            targetCtx.strokeStyle = color;
         } else {
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.strokeStyle = color;
-            ctx.lineWidth = size;
+            // ペン
+            targetCtx.lineWidth = size;
+            targetCtx.strokeStyle = color;
         }
     }
 
@@ -223,14 +222,19 @@
         scrollArea.style.overflowY = (mode === 'scroll') ? 'scroll' : 'hidden';
     }
 
-    // 描画イベント
+    // --- 描画イベント処理 (核心部分) ---
     canvas.addEventListener('touchstart', (e) => {
         if (mode !== 'draw') return;
         isDrawing = true;
         const pos = getXY(e);
-        updateStyle();
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y);
+        
+        // マーカーなら裏キャンバス、それ以外は表キャンバスをターゲットにする
+        const targetCtx = (tool === 'marker') ? tempCtx : ctx;
+        updateStyle(targetCtx);
+        
+        targetCtx.beginPath();
+        targetCtx.moveTo(pos.x, pos.y);
+
         if(tool === 'eraser') showEraserCursor(pos.x, pos.y);
     }, {passive: false});
 
@@ -238,19 +242,35 @@
         if (!isDrawing) return;
         if (e.cancelable) e.preventDefault();
         const pos = getXY(e);
-        ctx.lineTo(pos.x, pos.y);
-        ctx.stroke();
+        
+        const targetCtx = (tool === 'marker') ? tempCtx : ctx;
+        targetCtx.lineTo(pos.x, pos.y);
+        targetCtx.stroke();
+
         if(tool === 'eraser') showEraserCursor(pos.x, pos.y);
-        // 自動拡張
-        if (pos.y > canvas.height - 300) {
-            const data = canvas.toDataURL(); canvas.height += 1000;
+        
+        // 自動拡張 (表裏両方広げる)
+        if (pos.y > canvas.height - 300 && tool !== 'marker') {
+            const data = canvas.toDataURL();
+            canvas.height += 1000; tempCanvas.height += 1000;
             const img = new Image(); img.src = data;
-            img.onload = () => { ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); updateStyle(); };
+            img.onload = () => { ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); updateStyle(ctx); };
         }
     }, {passive: false});
 
     canvas.addEventListener('touchend', () => {
-        if(isDrawing) { isDrawing = false; saveState(); }
+        if(isDrawing) {
+            isDrawing = false;
+            // マーカーの場合のみ、描き終わりに裏から表へ転写する
+            if(tool === 'marker') {
+                ctx.globalAlpha = 0.15; // ここで「一定の薄さ」を決める
+                ctx.drawImage(tempCanvas, 0, 0);
+                ctx.globalAlpha = 1.0; // 戻す
+                // 裏キャンバスをクリア
+                tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+            }
+            saveState();
+        }
         eraserCursor.style.display = 'none';
     });
 
@@ -300,7 +320,11 @@
     };
 
     window.onload = init;
-    window.onresize = () => { scrollArea.style.marginTop = document.querySelector('header').offsetHeight + 'px'; };
+    window.onresize = () => {
+        canvas.width = window.innerWidth; tempCanvas.width = window.innerWidth;
+        scrollArea.style.marginTop = document.querySelector('header').offsetHeight + 'px';
+        undoStack = []; saveState(); // リサイズ時はUndoスタックをリセット
+    };
 </script>
 </body>
 </html>
