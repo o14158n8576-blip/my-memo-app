@@ -3,48 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Name Entry</title>
+    <title>録音メモ Pro - Advanced</title>
     <style>
         :root {
-            --primary-color: #007aff;
-            --danger-color: #ff3b30;
-            --success-color: #34c759;
-            --bg-header: #ffffff;
+            --primary-color: #007aff; --danger-color: #ff3b30; --success-color: #34c759; --bg-header: #ffffff;
         }
         body {
             margin: 0; display: flex; flex-direction: column; height: 100vh;
             font-family: -apple-system, sans-serif; background: #f2f2f7; overflow: hidden; position: fixed; width: 100%;
         }
-
         header {
-            background: var(--bg-header); padding: 15px 20px; display: flex; align-items: center; 
-            z-index: 2000; box-shadow: 0 4px 12px rgba(0,0,0,0.08); gap: 15px;
+            background: var(--bg-header); padding: 12px 20px; display: flex; flex-wrap: wrap;
+            align-items: center; z-index: 2000; box-shadow: 0 4px 12px rgba(0,0,0,0.1); gap: 12px;
         }
+        .tool-group { display: flex; background: #efeff4; border-radius: 12px; padding: 3px; border: 1px solid #ddd; }
+        .mode-btn, .tool-btn { padding: 10px 18px; border: none; border-radius: 9px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s; }
+        .active { background: white; color: var(--primary-color); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        .color-picker { display: flex; gap: 8px; }
+        .color-dot { width: 38px; height: 38px; border-radius: 50%; border: 3px solid #eee; cursor: pointer; position: relative; }
+        .color-dot.selected { border-color: #333; transform: scale(1.1); }
+        .marker::after { content: "H"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 12px; font-weight: 900; }
 
-        .mode-selector { display: flex; background: #efeff4; border-radius: 14px; padding: 4px; border: 1px solid #ddd; }
-        .mode-btn { 
-            padding: 14px 24px; border: none; border-radius: 11px; cursor: pointer; 
-            font-weight: bold; font-size: 18px; transition: all 0.2s; color: #8e8e93;
-        }
-        .active { background: white; color: var(--primary-color); box-shadow: 0 3px 8px rgba(0,0,0,0.12); }
-
-        .color-picker { display: flex; gap: 12px; }
-        .color-dot { width: 42px; height: 42px; border-radius: 50%; border: 3px solid #eee; cursor: pointer; }
-        .color-dot.selected { border-color: #000; transform: scale(1.1); }
-
-        button.action-btn { 
-            padding: 14px 20px; border-radius: 14px; border: none; font-size: 16px; font-weight: 800; cursor: pointer;
-        }
+        button.action-btn { padding: 10px 18px; border-radius: 10px; border: none; font-size: 15px; font-weight: bold; cursor: pointer; }
         #recordBtn { background: var(--primary-color); color: white; }
         #stopBtn { background: var(--danger-color); color: white; }
-        #stopBtn:disabled { background: #d1d1d6; opacity: 0.6; }
-        #saveBtn { background: var(--success-color); color: white; }
-        #clearBtn { background: #eee; color: #ff3b30; margin-left: auto; }
+        #undoBtn { background: #fff; border: 1px solid #ccc; }
+        #clearBtn { background: #eee; color: var(--danger-color); margin-left: auto; }
 
-        #status-display { 
-            font-size: 18px; font-weight: 900; color: #333; min-width: 140px; text-align: center;
-            padding: 8px; border-radius: 10px; background: #f8f8f8;
-        }
+        #status-display { font-size: 16px; font-weight: bold; min-width: 120px; text-align: center; }
 
         #scroll-container { flex-grow: 1; overflow-y: scroll; background: #fff; -webkit-overflow-scrolling: touch; }
         canvas { display: block; background: #fff; touch-action: none; }
@@ -52,7 +39,7 @@
 </head>
 <body>
     <header id="app-header">
-        <div class="mode-selector">
+        <div class="tool-group">
             <button id="drawModeBtn" class="mode-btn active">🖊 描く</button>
             <button id="scrollModeBtn" class="mode-btn">✋ 移動</button>
         </div>
@@ -60,16 +47,17 @@
         <div class="color-picker" id="colorPicker">
             <div class="color-dot selected" style="background: #000;" data-color="#000000"></div>
             <div class="color-dot" style="background: #ff3b30;" data-color="#ff3b30"></div>
-            <div class="color-dot" style="background: #007aff;" data-color="#007aff"></div>
-            <div class="color-dot" style="background: #34c759;" data-color="#34c759"></div>
+            <div class="color-dot marker" style="background: #ffff00; border-color: #ddd;" data-color="rgba(255, 255, 0, 0.4)" data-type="marker"></div>
+            <div class="color-dot" id="eraserBtn" style="background: #fff; border: 2px solid #ccc;" data-type="eraser">🧽</div>
         </div>
+
+        <button id="undoBtn" class="action-btn">↩️ 戻る</button>
         
-        <button id="recordBtn" class="action-btn">録音開始</button>
+        <button id="recordBtn" class="action-btn">録音</button>
         <button id="stopBtn" class="action-btn" disabled>停止</button>
-        
         <div id="status-display">READY</div>
 
-        <button id="saveBtn" class="action-btn">メモ保存</button>
+        <button id="saveBtn" class="action-btn" style="background: var(--success-color); color:white;">保存</button>
         <button id="clearBtn" class="action-btn">全消去</button>
     </header>
 
@@ -79,48 +67,84 @@
 
     <script>
         const canvas = document.getElementById('memoCanvas');
-        const ctx = canvas.getContext('2d', { desynchronized: true });
+        const container = document.getElementById('scroll-container');
+        const ctx = canvas.getContext('2d');
         const statusDisplay = document.getElementById('status-display');
-        const recordBtn = document.getElementById('recordBtn');
-        const stopBtn = document.getElementById('stopBtn');
-
+        
         let isDrawing = false;
         let editMode = 'draw';
         let currentColor = '#000000';
-        let mediaRecorder;
-        let audioChunks = [];
-        const INITIAL_HEIGHT = 4000;
+        let isEraser = false;
+        let isMarker = false;
+        let undoStack = [];
+        const MAX_UNDO = 20;
 
         function initCanvas() {
             canvas.width = window.innerWidth;
-            canvas.height = INITIAL_HEIGHT;
+            canvas.height = 4000;
             ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            setPenStyle(); loadFromLocalStorage();
+            saveState(); // 初期状態を保存
+            loadFromLocalStorage();
         }
 
         function setPenStyle() {
-            ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = currentColor;
+            ctx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
+            ctx.strokeStyle = currentColor;
+            ctx.lineWidth = isEraser ? 30 : (isMarker ? 20 : 3);
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         }
 
-        // UI制御
+        // 状態保存（Undo用）
+        function saveState() {
+            if (undoStack.length >= MAX_UNDO) undoStack.shift();
+            undoStack.push(canvas.toDataURL());
+        }
+
+        document.getElementById('undoBtn').onclick = () => {
+            if (undoStack.length > 1) {
+                undoStack.pop(); // 現在の状態を捨てる
+                const lastState = undoStack[undoStack.length - 1];
+                const img = new Image();
+                img.src = lastState;
+                img.onload = () => {
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    setPenStyle();
+                };
+            }
+        };
+
+        // ツール切替
         document.querySelectorAll('.color-dot').forEach(dot => {
             dot.onclick = () => {
                 document.querySelector('.color-dot.selected').classList.remove('selected');
                 dot.classList.add('selected');
-                currentColor = dot.dataset.color; setPenStyle();
+                isEraser = dot.dataset.type === 'eraser';
+                isMarker = dot.dataset.type === 'marker';
+                currentColor = dot.dataset.color || '#000000';
+                editMode = 'draw';
+                updateModeUI();
+                setPenStyle();
             };
         });
 
-        document.getElementById('drawModeBtn').onclick = (e) => {
-            editMode = 'draw'; e.target.classList.add('active');
-            document.getElementById('scrollModeBtn').classList.remove('active');
-        };
-        document.getElementById('scrollModeBtn').onclick = (e) => {
-            editMode = 'scroll'; e.target.classList.add('active');
-            document.getElementById('drawModeBtn').classList.remove('active');
+        const updateModeUI = () => {
+            if(editMode === 'draw') {
+                document.getElementById('drawModeBtn').classList.add('active');
+                document.getElementById('scrollModeBtn').classList.remove('active');
+                container.style.overflowY = 'hidden'; // 描画中はスクロールを完全に殺す
+            } else {
+                document.getElementById('scrollModeBtn').classList.add('active');
+                document.getElementById('drawModeBtn').classList.remove('active');
+                container.style.overflowY = 'scroll';
+            }
         };
 
-        // 描画・保存
+        document.getElementById('drawModeBtn').onclick = () => { editMode = 'draw'; updateModeUI(); };
+        document.getElementById('scrollModeBtn').onclick = () => { editMode = 'scroll'; updateModeUI(); };
+
+        // 描画
         canvas.addEventListener('touchstart', (e) => {
             if (editMode !== 'draw') return;
             isDrawing = true;
@@ -130,66 +154,56 @@
 
         canvas.addEventListener('touchmove', (e) => {
             if (!isDrawing || editMode !== 'draw') return;
-            if (e.cancelable) e.preventDefault();
+            e.preventDefault();
             const t = e.touches[0]; const rect = canvas.getBoundingClientRect();
             ctx.lineTo(t.clientX - rect.left, t.clientY - rect.top); ctx.stroke();
         }, { passive: false });
 
-        canvas.addEventListener('touchend', () => { isDrawing = false; saveToLocalStorage(); });
+        canvas.addEventListener('touchend', () => { 
+            if(isDrawing) { isDrawing = false; saveState(); saveToLocalStorage(); }
+        });
 
-        // 録音ロジック
-        recordBtn.onclick = async () => {
+        // 録音 (名前入力保存)
+        let mediaRecorder; let audioChunks = [];
+        document.getElementById('recordBtn').onclick = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
-                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
                 mediaRecorder.onstop = () => {
-                    // 名前入力
-                    let fileName = prompt("音声ファイルの名前を入力してください", `voice_${new Date().toLocaleTimeString()}`);
-                    if (!fileName) fileName = `voice_${Date.now()}`;
-
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/mp4' });
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    const link = document.createElement('a');
-                    link.href = audioUrl;
-                    link.download = `${fileName}.mp4`;
-                    link.click();
-                    
+                    let name = prompt("ファイル名:", `録音_${new Date().toLocaleTimeString()}`);
+                    if(!name) return;
+                    const blob = new Blob(audioChunks, { type: 'audio/mp4' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = `${name}.mp4`; a.click();
                     statusDisplay.innerText = "SAVED";
-                    statusDisplay.style.color = "var(--success-color)";
                 };
                 mediaRecorder.start();
-                recordBtn.disabled = true; stopBtn.disabled = false;
+                document.getElementById('recordBtn').disabled = true; document.getElementById('stopBtn').disabled = false;
                 statusDisplay.innerText = "● RECORDING";
-                statusDisplay.style.color = "var(--danger-color)";
-            } catch (err) { alert("Mic Error: " + err.message); }
+            } catch (e) { alert(e); }
+        };
+        document.getElementById('stopBtn').onclick = () => {
+            mediaRecorder.stop();
+            document.getElementById('recordBtn').disabled = false; document.getElementById('stopBtn').disabled = true;
         };
 
-        stopBtn.onclick = () => { mediaRecorder.stop(); recordBtn.disabled = false; stopBtn.disabled = true; };
-
-        // メモ保存時も名前を聞く
+        // その他
         document.getElementById('saveBtn').onclick = () => {
-            let fileName = prompt("メモの名前を入力してください", `memo_${new Date().toLocaleTimeString()}`);
-            if (!fileName) fileName = `memo_${Date.now()}`;
-            
-            const link = document.createElement('a');
-            link.href = canvas.toDataURL("image/jpeg", 0.9);
-            link.download = `${fileName}.jpg`;
-            link.click();
+            let name = prompt("メモ名:", `メモ_${new Date().toLocaleTimeString()}`);
+            if(!name) return;
+            const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.8); a.download = `${name}.jpg`; a.click();
         };
-
-        function saveToLocalStorage() { localStorage.setItem('myMemoData', canvas.toDataURL("image/jpeg", 0.5)); }
+        function saveToLocalStorage() { localStorage.setItem('memoImg', canvas.toDataURL("image/png")); }
         function loadFromLocalStorage() {
-            const savedData = localStorage.getItem('myMemoData');
-            if (savedData) { const img = new Image(); img.src = savedData; img.onload = () => ctx.drawImage(img, 0, 0); }
+            const data = localStorage.getItem('memoImg');
+            if (data) { const img = new Image(); img.src = data; img.onload = () => ctx.drawImage(img, 0, 0); }
         }
         document.getElementById('clearBtn').onclick = () => {
-            if(confirm("全消去しますか？")) {
-                ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                saveToLocalStorage(); statusDisplay.innerText = "CLEARED";
-            }
+            if(confirm("全消去？")) { ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); saveState(); }
         };
+
         window.onload = initCanvas;
     </script>
 </body>
