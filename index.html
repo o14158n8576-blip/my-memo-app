@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Night Mode Fix</title>
+    <title>録音メモ Pro - Final Edition</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30;
@@ -11,16 +11,16 @@
             --bg-header: rgba(173, 216, 230, 0.9);
             --bg-header-rec: rgba(0, 150, 255, 0.95);
             --text-main: #1c1c1e;
-            --canvas-bg: #ffffff;
+            --canvas-bg: #ffffff; /* ライトモードのメモ背景 */
             --btn-text: #444;
         }
 
         body.dark-mode {
             --bg-app: #000000;
-            --bg-header: rgba(30, 30, 32, 0.9);
+            --bg-header: rgba(30, 30, 32, 0.95);
             --bg-header-rec: rgba(0, 80, 180, 0.95);
             --text-main: #ffffff;
-            --canvas-bg: #1c1c1e;
+            --canvas-bg: #1c1c1e; /* ダークモードのメモ背景 */
             --btn-text: #ffffff;
         }
 
@@ -28,7 +28,7 @@
             margin: 0; display: flex; flex-direction: column; height: 100vh;
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-app); overflow: hidden; color: var(--text-main);
-            transition: background 0.2s;
+            transition: background 0.3s;
         }
 
         header {
@@ -43,17 +43,13 @@
         .header-top { display: flex; justify-content: center; align-items: center; position: relative; height: 40px; }
         .app-title { font-size: 20px; font-weight: 800; color: var(--btn-text); letter-spacing: 2px; }
 
-        /* 波形ビジュアライザー */
-        #visualizer {
-            display: none; width: 80px; height: 30px; position: absolute; left: 0;
-            background: transparent;
-        }
+        #visualizer { display: none; width: 80px; height: 30px; position: absolute; left: 0; }
         header.recording-active #visualizer { display: block; }
         header.recording-active .app-title { color: #fff; }
 
         .row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
         .segmented-control { display: flex; background: rgba(255, 255, 255, 0.2); border-radius: 10px; padding: 2px; }
-        .mode-btn { padding: 6px 10px; border: none; border-radius: 8px; font-weight: 700; font-size: 12px; background: none; color: var(--btn-text); transition: all 0.2s; min-width: 50px; }
+        .mode-btn { padding: 6px 10px; border: none; border-radius: 8px; font-weight: 700; font-size: 12px; background: none; color: var(--btn-text); min-width: 50px; }
         .mode-btn.active { background: #fff; color: #000; }
 
         button.btn { padding: 8px 10px; border-radius: 10px; border: none; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; }
@@ -61,27 +57,36 @@
         .btn-blue { background: var(--primary); color: #fff; }
         .btn-red { background: var(--danger); color: #fff; }
         .btn-dl { background: rgba(255, 255, 255, 0.3); color: var(--btn-text); }
-        .btn-toggle { background: rgba(0, 122, 255, 0.1); color: var(--primary); }
         #clearBtn { background: rgba(0,0,0,0.1); color: var(--btn-text); margin-left: auto; }
-        
-        button:disabled { opacity: 0.2; }
 
-        .color-dot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        /* スライダーを倍くらいのサイズに調整 */
+        .slider-container { display: flex; align-items: center; gap: 10px; color: var(--btn-text); font-weight: bold; }
+        #sizeSlider {
+            -webkit-appearance: none; width: 150px; height: 12px; 
+            background: rgba(255,255,255,0.3); border-radius: 10px; outline: none;
+        }
+        #sizeSlider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 28px; height: 28px; 
+            background: var(--primary); border-radius: 50%; cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid #fff;
+        }
+
+        .color-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
         .color-dot.active { transform: scale(1.2); border-color: var(--primary); }
 
         #transcription-area {
-            position: fixed; top: 155px; left: 16px; right: 16px; z-index: 900;
-            background: rgba(255, 255, 255, 0.9); border-radius: 12px;
+            position: fixed; top: 165px; left: 16px; right: 16px; z-index: 900;
+            background: rgba(255, 255, 255, 0.95); border-radius: 12px;
             padding: 12px; font-size: 14px; color: #333; max-height: 120px;
-            overflow-y: auto; display: none; border: 1px solid #add8e6;
-            backdrop-filter: blur(10px);
+            overflow-y: auto; display: none; border: 1px solid var(--primary);
         }
-        body.dark-mode #transcription-area { background: rgba(40, 40, 42, 0.95); color: #fff; border-color: #444; }
+        body.dark-mode #transcription-area { background: rgba(40, 40, 42, 0.95); color: #fff; }
 
         #scroll-area { 
             flex-grow: 1; overflow-y: auto; 
-            background: var(--canvas-bg); /* ここでCSS変数を使用 */
-            position: relative; margin-top: 155px; 
+            background: var(--canvas-bg); /* CSS変数で一括コントロール */
+            position: relative; margin-top: 165px; 
+            transition: background 0.3s;
         }
         canvas#mainCanvas { display: block; margin: 0 auto; touch-action: none; background: transparent; }
     </style>
@@ -92,7 +97,7 @@
     <div class="header-top">
         <canvas id="visualizer" width="160" height="60"></canvas>
         <div class="app-title">メモ＆録音</div>
-        <button id="themeToggle" class="btn btn-white" style="position:absolute; right:0;">🌙 モード切替</button>
+        <button id="themeToggle" class="btn btn-white" style="position:absolute; right:0; padding: 10px 15px;">🌙 モード切替</button>
     </div>
 
     <div class="row">
@@ -108,7 +113,7 @@
         <button id="undoBtn" class="btn btn-white">↩️ 戻る</button>
         
         <div class="row" style="margin-left:auto;">
-            <button id="toggleTextBtn" class="btn btn-toggle">👀 文字表示</button>
+            <button id="toggleTextBtn" class="btn btn-white">👀 文字</button>
             <button id="dlImgBtn" class="btn btn-dl">🖼 画像</button>
             <button id="dlAudioBtn" class="btn btn-dl" disabled>🎵 音声</button>
             <button id="dlTextBtn" class="btn btn-dl" disabled>📄 文字</button>
@@ -118,10 +123,12 @@
     
     <div class="row">
         <div id="colorPalette" class="row"></div>
-        <div class="row" style="color:var(--btn-text); font-size:12px;">細<input type="range" id="sizeSlider" min="1" max="60" value="3" style="width:70px;">太</div>
+        <div class="slider-container">
+            <span>細</span><input type="range" id="sizeSlider" min="1" max="60" value="3"><span>太</span>
+        </div>
         <div class="row" style="margin-left:auto;">
-            <button id="recordBtn" class="btn btn-blue">🔴 録音</button>
-            <button id="stopBtn" class="btn btn-red" disabled>■ 停止</button>
+            <button id="recordBtn" class="btn btn-blue" style="padding:10px 20px;">🔴 録音</button>
+            <button id="stopBtn" class="btn btn-red" disabled style="padding:10px 20px;">■ 停止</button>
         </div>
     </div>
 </header>
@@ -147,31 +154,18 @@
     let recorder, chunks = [], recognition, fullTranscript = "", audioBlob = null;
     let isTextVisible = false;
 
-    // ビジュアライザー用
+    // ビジュアライザー
     let audioCtx, analyser, dataArray, animationId;
     const vCanvas = document.getElementById('visualizer');
     const vCtx = vCanvas.getContext('2d');
 
     const colors = ['#000000','#333333','#ff3b30','#ff9500','#ffcc00','#4cd964','#5ac8fa','#007aff','#5856d6','#ff2d55','#8e8e93','#ffffff'];
 
-    // --- ナイトモード切替の完全修正 ---
+    // --- ナイトモード：CSS変数のみで背景を制御する ---
     themeToggle.onclick = () => {
         const isDark = document.body.classList.toggle('dark-mode');
         themeToggle.textContent = isDark ? '☀️ モード切替' : '🌙 モード切替';
-        
-        // 背景色を決定
-        const bgColor = isDark ? "#1c1c1e" : "#ffffff";
-        
-        // 既存の描画内容を保持しつつ背景を塗り替える
-        const temp = canvas.toDataURL();
-        const img = new Image();
-        img.src = temp;
-        img.onload = () => {
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.fillStyle = bgColor;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-        };
+        // キャンバスの中身は透明なので、背景エリアの色が変わるだけでナイトモードになります
     };
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -191,9 +185,8 @@
 
     function init() {
         canvas.width = window.innerWidth; canvas.height = 4000;
-        const isDark = document.body.classList.contains('dark-mode');
-        ctx.fillStyle = isDark ? "#1c1c1e" : "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // 最初は透明な状態で始める（背景はCSSで描画）
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         
         const palette = document.getElementById('colorPalette');
         colors.forEach(c => {
@@ -228,11 +221,7 @@
     document.getElementById('undoBtn').onclick = () => {
         if (undoStack.length <= 1) return; undoStack.pop();
         const img = new Image(); img.src = undoStack[undoStack.length - 1];
-        img.onload = () => { 
-            ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1.0; 
-            ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#1c1c1e" : "#ffffff";
-            ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); 
-        };
+        img.onload = () => { ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); };
     };
 
     const btns = ['drawMode','scrollMode','penTool','markerTool','eraserTool'];
@@ -252,17 +241,24 @@
 
     document.getElementById('clearBtn').onclick = () => {
         if(confirm("すべて消去しますか？")) {
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#1c1c1e" : "#ffffff";
-            ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.clearRect(0,0,canvas.width,canvas.height);
             fullTranscript = ""; transcriptionArea.innerHTML = ""; audioBlob = null;
             dlAudioBtn.disabled = true; dlTextBtn.disabled = true; saveState();
         }
     };
 
+    // 画像保存時は、背景色を合成して保存
     document.getElementById('dlImgBtn').onclick = () => {
-        const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.7); a.download = `メモ_${Date.now()}.jpg`; a.click();
+        const isDark = document.body.classList.contains('dark-mode');
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.fillStyle = isDark ? "#1c1c1e" : "#ffffff";
+        tempCtx.fillRect(0,0,tempCanvas.width,tempCanvas.height);
+        tempCtx.drawImage(canvas, 0, 0);
+        const a = document.createElement('a'); a.href = tempCanvas.toDataURL("image/jpeg", 0.7); a.download = `メモ_${Date.now()}.jpg`; a.click();
     };
+
     dlAudioBtn.onclick = () => {
         const a = document.createElement('a'); a.href = URL.createObjectURL(audioBlob); a.download = `録音_${Date.now()}.mp4`; a.click();
     };
@@ -274,34 +270,28 @@
     document.getElementById('toggleTextBtn').onclick = () => {
         isTextVisible = !isTextVisible;
         transcriptionArea.style.display = isTextVisible ? 'block' : 'none';
-        document.getElementById('toggleTextBtn').textContent = isTextVisible ? '🙈 文字隠す' : '👀 文字表示';
     };
 
-    // --- ビジュアライザー描画 ---
     function drawVisualizer() {
         animationId = requestAnimationFrame(drawVisualizer);
         analyser.getByteFrequencyData(dataArray);
         vCtx.clearRect(0, 0, vCanvas.width, vCanvas.height);
         vCtx.fillStyle = '#ffffff'; 
-        const barWidth = 12;
-        for(let i = 0; i < 8; i++) {
-            const barHeight = (dataArray[i * 3] / 255) * vCanvas.height;
-            vCtx.fillRect(i * (barWidth + 4), vCanvas.height - barHeight, barWidth, barHeight);
+        const barWidth = 14;
+        for(let i = 0; i < 6; i++) {
+            const barHeight = (dataArray[i * 4] / 255) * vCanvas.height;
+            vCtx.fillRect(i * (barWidth + 6), vCanvas.height - barHeight, barWidth, barHeight);
         }
     }
 
     recordBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            // Web Audio API
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const source = audioCtx.createMediaStreamSource(stream);
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 64;
+            analyser = audioCtx.createAnalyser(); analyser.fftSize = 64;
             source.connect(analyser);
             dataArray = new Uint8Array(analyser.frequencyBinCount);
-            
             drawVisualizer(); 
 
             recorder = new MediaRecorder(stream); chunks = [];
