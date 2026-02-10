@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Sakura Visual REC</title>
+    <title>録音メモ Pro - Aqua Blue Edit</title>
     <style>
         :root {
-            --primary: #007aff; --danger: #ff3b30; --success: #34c759;
-            --bg-app: #f2f2f7;
-            --bg-header-sakura: rgba(255, 105, 180, 0.9);
-            --bg-header-recording: rgba(255, 59, 48, 0.9); /* 録音中の赤色 */
+            --primary: #007aff; --danger: #ff3b30;
+            --bg-app: #f2f7f9;
+            --bg-header-aqua: rgba(173, 216, 230, 0.9); /* 薄い水色 */
+            --bg-header-recording: rgba(0, 191, 255, 0.9); /* 録音中の少し濃い水色 */
             --text-color: #1c1c1e;
         }
         body {
@@ -21,68 +21,68 @@
         header {
             position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
             padding: 10px 16px 15px 16px;
-            background: var(--bg-header-sakura);
+            background: var(--bg-header-aqua);
             backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             display: flex; flex-direction: column; gap: 10px;
-            transition: background 0.4s ease; /* 色の変化を滑らかに */
+            transition: all 0.4s ease;
         }
 
-        /* 録音中のヘッダー状態 */
         header.recording-active {
             background: var(--bg-header-recording);
+            box-shadow: 0 4px 20px rgba(0, 122, 255, 0.3);
         }
 
         .header-top { display: flex; justify-content: center; align-items: center; position: relative; height: 40px; }
-        .app-title { font-size: 26px; font-weight: 900; color: #fff; letter-spacing: 3px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .app-title { font-size: 24px; font-weight: 800; color: #444; letter-spacing: 2px; }
+        header.recording-active .app-title { color: #fff; }
 
-        /* RECインジケーター */
         .rec-indicator {
-            display: none; align-items: center; gap: 5px; color: #fff; font-size: 14px; font-weight: bold;
-            position: absolute; left: 0; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 20px;
+            display: none; align-items: center; gap: 5px; color: #fff; font-size: 13px; font-weight: bold;
+            position: absolute; left: 0; background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 20px;
         }
         header.recording-active .rec-indicator { display: flex; }
         .dot { width: 10px; height: 10px; background: #fff; border-radius: 50%; animation: blink 1s infinite; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-        .row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
-        .segmented-control { display: flex; background: rgba(255, 255, 255, 0.3); border-radius: 10px; padding: 2px; flex-shrink: 0; }
-        .mode-btn { padding: 7px 12px; border: none; border-radius: 8px; font-weight: 700; font-size: 13px; background: none; color: #fff; transition: all 0.2s; min-width: 60px; }
-        .mode-btn.active { background: #fff; color: #000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+        .segmented-control { display: flex; background: rgba(255, 255, 255, 0.5); border-radius: 10px; padding: 2px; }
+        .mode-btn { padding: 6px 10px; border: none; border-radius: 8px; font-weight: 700; font-size: 12px; background: none; color: #555; transition: all 0.2s; min-width: 55px; }
+        .mode-btn.active { background: #fff; color: #000; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
 
-        button.btn { padding: 8px 12px; border-radius: 10px; border: none; font-weight: 700; font-size: 13px; cursor: pointer; transition: transform 0.1s, opacity 0.2s; display: flex; align-items: center; gap: 4px; }
-        .btn-white { background: #fff; color: #000; }
+        button.btn { padding: 8px 10px; border-radius: 10px; border: none; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; }
+        .btn-white { background: #fff; color: #333; }
         .btn-blue { background: var(--primary); color: #fff; }
         .btn-red { background: var(--danger); color: #fff; }
-        .btn-dl { background: rgba(255, 255, 255, 0.4); color: #fff; }
-        .btn-toggle { background: rgba(255, 255, 255, 0.6); color: #d0006f; }
-        #clearBtn { background: rgba(0,0,0,0.25); color: #fff; font-weight: 900; }
+        .btn-dl { background: rgba(255, 255, 255, 0.6); color: #007aff; }
+        .btn-toggle { background: rgba(0, 122, 255, 0.1); color: #007aff; }
+        #clearBtn { background: rgba(0,0,0,0.1); color: #444; margin-left: auto; }
         
         button:disabled { opacity: 0.2; cursor: not-allowed; }
 
-        .color-list { display: flex; gap: 8px; overflow-x: auto; padding: 2px; align-items: center; }
-        .color-dot { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); flex-shrink: 0; }
-        .color-dot.active { transform: scale(1.2); border-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
-        .slider-container { display: flex; align-items: center; gap: 5px; color: #fff; font-weight: bold; font-size: 14px; margin-right: 10px; }
+        .color-list { display: flex; gap: 6px; overflow-x: auto; padding: 2px; }
+        .color-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .color-dot.active { transform: scale(1.15); border-color: #007aff; }
+        .slider-container { display: flex; align-items: center; gap: 5px; color: #444; font-weight: bold; font-size: 12px; }
 
         #transcription-area {
             position: fixed; top: 155px; left: 16px; right: 16px; z-index: 900;
-            background: rgba(255, 255, 255, 0.9); border-radius: 12px;
-            padding: 12px; font-size: 14px; color: #333; min-height: 40px; max-height: 100px;
-            overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            display: none; border: 2px solid rgba(255, 59, 48, 0.3);
+            background: rgba(255, 255, 255, 0.95); border-radius: 12px;
+            padding: 12px; font-size: 14px; color: #333; min-height: 40px; max-height: 120px;
+            overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: none; border: 1px solid #add8e6;
             backdrop-filter: blur(10px);
         }
 
-        #scroll-area { flex-grow: 1; overflow-y: auto; overflow-x: hidden; background: #fff; position: relative; margin-top: 155px; }
-        canvas { background: #fff; display: block; margin: 0 auto; touch-action: none; }
+        #scroll-area { flex-grow: 1; overflow-y: auto; background: #fff; position: relative; margin-top: 155px; }
+        canvas { display: block; margin: 0 auto; touch-action: none; }
     </style>
 </head>
 <body>
 
 <header id="mainHeader">
     <div class="header-top">
-        <div class="rec-indicator"><div class="dot"></div>録音中...</div>
+        <div class="rec-indicator"><div class="dot"></div>REC...</div>
         <div class="app-title">メモ＆録音</div>
     </div>
 
@@ -100,19 +100,19 @@
         
         <div class="row" style="margin-left:auto;">
             <button id="toggleTextBtn" class="btn btn-toggle">👀 文字表示</button>
-            <button id="dlImgBtn" class="btn btn-dl">🖼 画像DL</button>
-            <button id="dlAudioBtn" class="btn btn-dl" disabled>🎵 音声DL</button>
-            <button id="dlTextBtn" class="btn btn-dl" disabled>📄 文字DL</button>
+            <button id="dlImgBtn" class="btn btn-dl">🖼 画像</button>
+            <button id="dlAudioBtn" class="btn btn-dl" disabled>🎵 音声</button>
+            <button id="dlTextBtn" class="btn btn-dl" disabled>📄 文字</button>
             <button id="clearBtn" class="btn">全消去</button>
         </div>
     </div>
     
     <div class="row">
         <div class="color-list" id="colorPalette"></div>
-        <div class="slider-container"><span>細</span><input type="range" id="sizeSlider" min="1" max="60" value="3" style="width:100px; accent-color:#fff;"><span>太</span></div>
+        <div class="slider-container"><span>細</span><input type="range" id="sizeSlider" min="1" max="60" value="3" style="width:80px;"><span>太</span></div>
         <div class="row" style="margin-left:auto;">
-            <button id="recordBtn" class="btn btn-blue">🔴 録音開始</button>
-            <button id="stopBtn" class="btn btn-red" disabled style="box-shadow: 0 0 10px rgba(255,255,255,0.5);">■ 停止</button>
+            <button id="recordBtn" class="btn btn-blue">🔴 録音</button>
+            <button id="stopBtn" class="btn btn-red" disabled>■ 停止</button>
         </div>
     </div>
 </header>
@@ -150,7 +150,7 @@
                 if (event.results[i].isFinal) fullTranscript += event.results[i][0].transcript + ' ';
                 else interimTranscript += event.results[i][0].transcript;
             }
-            transcriptionArea.innerHTML = `<strong>リアルタイム文字起こし:</strong><br>${fullTranscript}<span style="color:#888;">${interimTranscript}</span>`;
+            transcriptionArea.innerHTML = `<strong>文字起こしログ:</strong><br>${fullTranscript}<span style="color:#888;">${interimTranscript}</span>`;
             transcriptionArea.scrollTop = transcriptionArea.scrollHeight;
         };
     }
@@ -215,24 +215,26 @@
         }
     };
 
-    // ダウンロード処理
+    // --- 各種ダウンロード ---
     document.getElementById('dlImgBtn').onclick = () => {
-        const name = prompt("画像ファイル名:", `メモ_${new Date().toLocaleTimeString()}`); if(!name) return;
+        const name = prompt("画像名:", `メモ_${new Date().toLocaleTimeString()}`); if(!name) return;
         const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.7); a.download = `${name}.jpg`; a.click();
     };
     dlAudioBtn.onclick = () => {
         if(!audioBlob) return;
-        const name = prompt("音声ファイル名:", `録音_${new Date().toLocaleTimeString()}`); if(!name) return;
+        const name = prompt("音声名:", `録音_${new Date().toLocaleTimeString()}`); if(!name) return;
         const a = document.createElement('a'); a.href = URL.createObjectURL(audioBlob); a.download = `${name}.mp4`; a.click();
     };
     dlTextBtn.onclick = () => {
-        if(!fullTranscript) return;
-        const name = prompt("テキストファイル名:", `文字起こし_${new Date().toLocaleTimeString()}`); if(!name) return;
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), fullTranscript], { type: 'text/plain;charset=utf-8' });
+        // 文字列が空でないか、またはエリアにテキストがあるか最終確認
+        const content = fullTranscript || transcriptionArea.innerText.replace("文字起こしログ:", "");
+        if(!content.trim()) { alert("文字データがまだありません。"); return; }
+        const name = prompt("テキスト名:", `文字起こし_${new Date().toLocaleTimeString()}`); if(!name) return;
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), content], { type: 'text/plain;charset=utf-8' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name}.txt`; a.click();
     };
 
-    // --- 録音制御（ビジュアル変化の追加） ---
+    // --- 録音制御（DLボタンの有効化を強化） ---
     recordBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -241,12 +243,15 @@
             recorder.onstop = () => {
                 audioBlob = new Blob(chunks, { type: 'audio/mp4' });
                 dlAudioBtn.disabled = false;
-                if (fullTranscript.trim().length > 0) dlTextBtn.disabled = false;
-                header.classList.remove('recording-active'); // ヘッダーを桜色に戻す
+                // 停止時に文字が少しでもあれば確実に有効化
+                if (fullTranscript.trim().length > 0 || (transcriptionArea.innerText.length > 15)) {
+                    dlTextBtn.disabled = false;
+                }
+                header.classList.remove('recording-active');
             };
 
             recorder.start();
-            header.classList.add('recording-active'); // ヘッダーを赤色にする
+            header.classList.add('recording-active');
             
             if (recognition) { 
                 fullTranscript = ""; 
@@ -254,7 +259,7 @@
                 recognition.start(); 
             }
             recordBtn.disabled = true; stopBtn.disabled = false;
-        } catch(e) { alert("マイク許可が必要です"); }
+        } catch(e) { alert("マイクの許可が必要です"); }
     };
 
     stopBtn.onclick = () => {
