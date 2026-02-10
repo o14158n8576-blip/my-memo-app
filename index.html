@@ -3,84 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Aqua Blue Final</title>
+    <title>録音メモ Pro - Aqua Visual Studio</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30;
             --bg-app: #f2f7f9;
-            --bg-header-aqua: rgba(173, 216, 230, 0.9);
-            --bg-header-recording: rgba(0, 191, 255, 0.9);
-            --text-color: #1c1c1e;
+            --bg-header: rgba(173, 216, 230, 0.9);
+            --bg-header-rec: rgba(0, 150, 255, 0.95);
+            --text-main: #1c1c1e;
+            --canvas-bg: #ffffff;
+            --btn-text: #444;
         }
+
+        /* ダークモード用の色定義 */
+        body.dark-mode {
+            --bg-app: #1c1c1e;
+            --bg-header: rgba(44, 44, 46, 0.9);
+            --bg-header-rec: rgba(10, 80, 160, 0.95);
+            --text-main: #f2f2f7;
+            --canvas-bg: #2c2c2e;
+            --btn-text: #f2f2f7;
+        }
+
         body {
             margin: 0; display: flex; flex-direction: column; height: 100vh;
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-app); overflow: hidden; color: var(--text-color);
+            background: var(--bg-app); overflow: hidden; color: var(--text-main);
+            transition: background 0.3s ease;
         }
 
         header {
             position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
             padding: 10px 16px 15px 16px;
-            background: var(--bg-header-aqua);
+            background: var(--bg-header);
             backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             display: flex; flex-direction: column; gap: 10px;
             transition: all 0.4s ease;
         }
 
-        header.recording-active { background: var(--bg-header-recording); box-shadow: 0 4px 20px rgba(0, 122, 255, 0.3); }
+        header.recording-active { background: var(--bg-header-rec); color: #fff; }
 
         .header-top { display: flex; justify-content: center; align-items: center; position: relative; height: 40px; }
-        .app-title { font-size: 24px; font-weight: 800; color: #444; letter-spacing: 2px; }
-        header.recording-active .app-title { color: #fff; }
+        .app-title { font-size: 24px; font-weight: 800; color: var(--btn-text); letter-spacing: 2px; }
 
-        .rec-indicator {
-            display: none; align-items: center; gap: 5px; color: #fff; font-size: 13px; font-weight: bold;
-            position: absolute; left: 0; background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 20px;
+        /* 波形ビジュアライザー */
+        #visualizer {
+            display: none; width: 60px; height: 25px; position: absolute; left: 0;
         }
-        header.recording-active .rec-indicator { display: flex; }
-        .dot { width: 10px; height: 10px; background: #fff; border-radius: 50%; animation: blink 1s infinite; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        header.recording-active #visualizer { display: block; }
 
         .row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
-        .segmented-control { display: flex; background: rgba(255, 255, 255, 0.5); border-radius: 10px; padding: 2px; }
-        .mode-btn { padding: 6px 10px; border: none; border-radius: 8px; font-weight: 700; font-size: 12px; background: none; color: #555; transition: all 0.2s; min-width: 55px; }
-        .mode-btn.active { background: #fff; color: #000; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .segmented-control { display: flex; background: rgba(255, 255, 255, 0.3); border-radius: 10px; padding: 2px; }
+        .mode-btn { padding: 6px 10px; border: none; border-radius: 8px; font-weight: 700; font-size: 12px; background: none; color: var(--btn-text); transition: all 0.2s; min-width: 55px; }
+        .mode-btn.active { background: #fff; color: #000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
         button.btn { padding: 8px 10px; border-radius: 10px; border: none; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; }
         .btn-white { background: #fff; color: #333; }
         .btn-blue { background: var(--primary); color: #fff; }
         .btn-red { background: var(--danger); color: #fff; }
-        .btn-dl { background: rgba(255, 255, 255, 0.6); color: #007aff; }
-        .btn-toggle { background: rgba(0, 122, 255, 0.1); color: #007aff; }
-        #clearBtn { background: rgba(0,0,0,0.1); color: #444; margin-left: auto; }
+        .btn-dl { background: rgba(255, 255, 255, 0.4); color: var(--btn-text); }
+        .btn-toggle { background: rgba(0, 122, 255, 0.1); color: var(--primary); }
+        #clearBtn { background: rgba(0,0,0,0.1); color: var(--btn-text); margin-left: auto; }
         
         button:disabled { opacity: 0.2; cursor: not-allowed; }
 
-        .color-list { display: flex; gap: 6px; overflow-x: auto; padding: 2px; }
         .color-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .color-dot.active { transform: scale(1.15); border-color: #007aff; }
-        .slider-container { display: flex; align-items: center; gap: 5px; color: #444; font-weight: bold; font-size: 12px; }
+        .color-dot.active { transform: scale(1.15); border-color: var(--primary); }
 
         #transcription-area {
             position: fixed; top: 155px; left: 16px; right: 16px; z-index: 900;
             background: rgba(255, 255, 255, 0.95); border-radius: 12px;
             padding: 12px; font-size: 14px; color: #333; min-height: 40px; max-height: 120px;
-            overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            display: none; border: 1px solid #add8e6;
+            overflow-y: auto; display: none; border: 1px solid #add8e6;
             backdrop-filter: blur(10px);
         }
+        body.dark-mode #transcription-area { background: rgba(44, 44, 46, 0.95); color: #fff; border-color: #555; }
 
-        #scroll-area { flex-grow: 1; overflow-y: auto; background: #fff; position: relative; margin-top: 155px; }
-        canvas { display: block; margin: 0 auto; touch-action: none; }
+        #scroll-area { flex-grow: 1; overflow-y: auto; background: var(--canvas-bg); position: relative; margin-top: 155px; }
+        canvas { display: block; margin: 0 auto; touch-action: none; background: var(--canvas-bg); }
     </style>
 </head>
 <body>
 
 <header id="mainHeader">
     <div class="header-top">
-        <div class="rec-indicator"><div class="dot"></div>REC...</div>
+        <canvas id="visualizer"></canvas>
         <div class="app-title">メモ＆録音</div>
+        <button id="themeToggle" class="btn btn-white" style="position:absolute; right:0;">🌙 モード切替</button>
     </div>
 
     <div class="row">
@@ -105,8 +115,8 @@
     </div>
     
     <div class="row">
-        <div class="color-list" id="colorPalette"></div>
-        <div class="slider-container"><span>細</span><input type="range" id="sizeSlider" min="1" max="60" value="3" style="width:80px;"><span>太</span></div>
+        <div id="colorPalette" class="row"></div>
+        <div class="row" style="color:var(--btn-text); font-size:12px;">細<input type="range" id="sizeSlider" min="1" max="60" value="3" style="width:70px;">太</div>
         <div class="row" style="margin-left:auto;">
             <button id="recordBtn" class="btn btn-blue">🔴 録音</button>
             <button id="stopBtn" class="btn btn-red" disabled>■ 停止</button>
@@ -127,16 +137,38 @@
     const transcriptionArea = document.getElementById('transcription-area');
     const dlAudioBtn = document.getElementById('dlAudioBtn');
     const dlTextBtn = document.getElementById('dlTextBtn');
-    const toggleTextBtn = document.getElementById('toggleTextBtn');
     const recordBtn = document.getElementById('recordBtn');
     const stopBtn = document.getElementById('stopBtn');
+    const themeToggle = document.getElementById('themeToggle');
 
     let isDrawing = false, mode = 'draw', tool = 'pen', color = '#000000', size = 3, undoStack = [];
     let recorder, chunks = [], recognition, fullTranscript = "", audioBlob = null;
     let isTextVisible = false;
 
+    // ビジュアライザー用変数
+    let audioCtx, analyser, dataArray, animationId;
+    const vCanvas = document.getElementById('visualizer');
+    const vCtx = vCanvas.getContext('2d');
+
     const colors = ['#000000','#333333','#ff3b30','#ff9500','#ffcc00','#4cd964','#5ac8fa','#007aff','#5856d6','#ff2d55','#8e8e93','#ffffff'];
 
+    // ダークモード切替
+    themeToggle.onclick = () => {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        themeToggle.textContent = isDark ? '☀️ モード切替' : '🌙 モード切替';
+        // キャンバスの背景を再描画（既存の線は保持）
+        const temp = canvas.toDataURL();
+        const img = new Image();
+        img.src = temp;
+        img.onload = () => {
+            ctx.fillStyle = isDark ? "#2c2c2e" : "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+        };
+    };
+
+    // 音声認識
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
         recognition = new SpeechRecognition();
@@ -151,12 +183,6 @@
             transcriptionArea.scrollTop = transcriptionArea.scrollHeight;
         };
     }
-
-    toggleTextBtn.onclick = () => {
-        isTextVisible = !isTextVisible;
-        transcriptionArea.style.display = isTextVisible ? 'block' : 'none';
-        toggleTextBtn.textContent = isTextVisible ? '🙈 文字隠す' : '👀 文字表示';
-    };
 
     function init() {
         canvas.width = window.innerWidth; canvas.height = 4000;
@@ -177,17 +203,31 @@
 
     function updateStyle() {
         ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = 1.0;
-        if (tool === 'eraser') { ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = size * 5; }
-        else if (tool === 'marker') { ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = size * 6; ctx.globalAlpha = 0.04; ctx.strokeStyle = color; }
-        else { ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = color; ctx.lineWidth = size; }
+        if (tool === 'eraser') { 
+            ctx.globalCompositeOperation = 'destination-out'; 
+            ctx.lineWidth = size * 5; 
+        } else if (tool === 'marker') { 
+            ctx.globalCompositeOperation = 'source-over'; 
+            ctx.lineWidth = size * 6; ctx.globalAlpha = 0.04; ctx.strokeStyle = color; 
+        } else { 
+            ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = color; ctx.lineWidth = size; 
+        }
     }
 
-    canvas.addEventListener('touchstart', (e) => { if (mode !== 'draw') return; isDrawing = true; const pos = getXY(e); updateStyle(); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); }, {passive: false});
-    canvas.addEventListener('touchmove', (e) => { if (!isDrawing) return; if (e.cancelable) e.preventDefault(); const pos = getXY(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); }, {passive: false});
+    canvas.addEventListener('touchstart', (e) => { if (mode !== 'draw') return; isDrawing = true; updateStyle(); const pos = getXY(e); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); }, {passive: false});
+    canvas.addEventListener('touchmove', (e) => { if (!isDrawing) return; e.preventDefault(); const pos = getXY(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); }, {passive: false});
     canvas.addEventListener('touchend', () => { if(isDrawing) { isDrawing = false; saveState(); } });
 
     function saveState() { if (undoStack.length > 20) undoStack.shift(); undoStack.push(canvas.toDataURL()); }
-    document.getElementById('undoBtn').onclick = () => { if (undoStack.length <= 1) return; undoStack.pop(); const img = new Image(); img.src = undoStack[undoStack.length - 1]; img.onload = () => { ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1.0; ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); }; };
+    document.getElementById('undoBtn').onclick = () => {
+        if (undoStack.length <= 1) return; undoStack.pop();
+        const img = new Image(); img.src = undoStack[undoStack.length - 1];
+        img.onload = () => { 
+            ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1.0; 
+            ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#2c2c2e" : "#ffffff";
+            ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); 
+        };
+    };
 
     const btns = ['drawMode','scrollMode','penTool','markerTool','eraserTool'];
     btns.forEach(id => { document.getElementById(id).onclick = function() { if(id.includes('Mode')) mode = id.replace('Mode',''); else tool = id.replace('Tool',''); updateUI(); }; });
@@ -203,62 +243,72 @@
     }
 
     document.getElementById('sizeSlider').oninput = (e) => { size = e.target.value; };
-    
-    // --- 全消去：文字起こしログも完全にリセットするように強化 ---
+
+    // 全消去
     document.getElementById('clearBtn').onclick = () => {
-        if(confirm("画像・録音・文字起こしのすべてを消去しますか？")) {
-            // キャンバスのリセット
-            ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            
-            // 文字起こし変数のリセット
-            fullTranscript = ""; 
-            
-            // 画面表示のリセット
-            transcriptionArea.innerHTML = ""; 
-            
-            // 録音データのリセット
-            audioBlob = null; 
-            chunks = [];
-            
-            // 各DLボタンを無効化（文字と音声）
-            dlAudioBtn.disabled = true; 
-            dlTextBtn.disabled = true; 
-            
-            saveState();
+        if(confirm("すべて消去しますか？")) {
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#2c2c2e" : "#ffffff";
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+            fullTranscript = ""; transcriptionArea.innerHTML = ""; audioBlob = null;
+            dlAudioBtn.disabled = true; dlTextBtn.disabled = true; saveState();
         }
     };
 
     // ダウンロード
     document.getElementById('dlImgBtn').onclick = () => {
-        const name = prompt("画像名:", `メモ_${new Date().toLocaleTimeString()}`); if(!name) return;
-        const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.7); a.download = `${name}.jpg`; a.click();
+        const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.7); a.download = `メモ_${Date.now()}.jpg`; a.click();
     };
     dlAudioBtn.onclick = () => {
-        if(!audioBlob) return;
-        const name = prompt("音声名:", `録音_${new Date().toLocaleTimeString()}`); if(!name) return;
-        const a = document.createElement('a'); a.href = URL.createObjectURL(audioBlob); a.download = `${name}.mp4`; a.click();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(audioBlob); a.download = `録音_${Date.now()}.mp4`; a.click();
     };
     dlTextBtn.onclick = () => {
-        const content = fullTranscript || transcriptionArea.innerText.replace("文字起こしログ:", "");
-        if(!content.trim()) return;
-        const name = prompt("テキスト名:", `文字起こし_${new Date().toLocaleTimeString()}`); if(!name) return;
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), content], { type: 'text/plain;charset=utf-8' });
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name}.txt`; a.click();
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), fullTranscript], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `文字起こし_${Date.now()}.txt`; a.click();
     };
+
+    // 表示切替
+    document.getElementById('toggleTextBtn').onclick = () => {
+        isTextVisible = !isTextVisible;
+        transcriptionArea.style.display = isTextVisible ? 'block' : 'none';
+        document.getElementById('toggleTextBtn').textContent = isTextVisible ? '🙈 文字隠す' : '👀 文字表示';
+    };
+
+    // --- ビジュアライザー描画 ---
+    function drawVisualizer() {
+        animationId = requestAnimationFrame(drawVisualizer);
+        analyser.getByteFrequencyData(dataArray);
+        vCtx.clearRect(0, 0, vCanvas.width, vCanvas.height);
+        vCtx.fillStyle = '#fff';
+        const barWidth = (vCanvas.width / 10);
+        for(let i = 0; i < 10; i++) {
+            const barHeight = (dataArray[i * 2] / 255) * vCanvas.height;
+            vCtx.fillRect(i * (barWidth + 2), vCanvas.height - barHeight, barWidth, barHeight);
+        }
+    }
 
     // 録音
     recordBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // ビジュアライザー設定
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtx.createMediaStreamSource(stream);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64;
+            source.connect(analyser);
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            drawVisualizer();
+
             recorder = new MediaRecorder(stream); chunks = [];
             recorder.ondataavailable = e => chunks.push(e.data);
             recorder.onstop = () => {
                 audioBlob = new Blob(chunks, { type: 'audio/mp4' });
                 dlAudioBtn.disabled = false;
-                if (fullTranscript.trim().length > 0 || transcriptionArea.innerText.includes(" ")) {
-                    dlTextBtn.disabled = false;
-                }
+                if (fullTranscript.trim().length > 0) dlTextBtn.disabled = false;
                 header.classList.remove('recording-active');
+                cancelAnimationFrame(animationId);
             };
             recorder.start();
             header.classList.add('recording-active');
@@ -268,8 +318,9 @@
     };
 
     stopBtn.onclick = () => {
-        if (recorder && recorder.state !== "inactive") recorder.stop();
+        recorder.stop();
         if (recognition) recognition.stop();
+        if (audioCtx) audioCtx.close();
         recordBtn.disabled = false; stopBtn.disabled = true;
     };
 
