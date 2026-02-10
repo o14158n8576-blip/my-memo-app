@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Aqua Blue Edit</title>
+    <title>録音メモ Pro - Aqua Blue Final</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30;
             --bg-app: #f2f7f9;
-            --bg-header-aqua: rgba(173, 216, 230, 0.9); /* 薄い水色 */
-            --bg-header-recording: rgba(0, 191, 255, 0.9); /* 録音中の少し濃い水色 */
+            --bg-header-aqua: rgba(173, 216, 230, 0.9);
+            --bg-header-recording: rgba(0, 191, 255, 0.9);
             --text-color: #1c1c1e;
         }
         body {
@@ -28,10 +28,7 @@
             transition: all 0.4s ease;
         }
 
-        header.recording-active {
-            background: var(--bg-header-recording);
-            box-shadow: 0 4px 20px rgba(0, 122, 255, 0.3);
-        }
+        header.recording-active { background: var(--bg-header-recording); box-shadow: 0 4px 20px rgba(0, 122, 255, 0.3); }
 
         .header-top { display: flex; justify-content: center; align-items: center; position: relative; height: 40px; }
         .app-title { font-size: 24px; font-weight: 800; color: #444; letter-spacing: 2px; }
@@ -207,15 +204,31 @@
 
     document.getElementById('sizeSlider').oninput = (e) => { size = e.target.value; };
     
+    // --- 全消去：文字起こしログも完全にリセットするように強化 ---
     document.getElementById('clearBtn').onclick = () => {
-        if(confirm("全消去しますか？")) {
+        if(confirm("画像・録音・文字起こしのすべてを消去しますか？")) {
+            // キャンバスのリセット
             ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            fullTranscript = ""; transcriptionArea.innerHTML = ""; audioBlob = null;
-            dlAudioBtn.disabled = true; dlTextBtn.disabled = true; saveState();
+            
+            // 文字起こし変数のリセット
+            fullTranscript = ""; 
+            
+            // 画面表示のリセット
+            transcriptionArea.innerHTML = ""; 
+            
+            // 録音データのリセット
+            audioBlob = null; 
+            chunks = [];
+            
+            // 各DLボタンを無効化（文字と音声）
+            dlAudioBtn.disabled = true; 
+            dlTextBtn.disabled = true; 
+            
+            saveState();
         }
     };
 
-    // --- 各種ダウンロード ---
+    // ダウンロード
     document.getElementById('dlImgBtn').onclick = () => {
         const name = prompt("画像名:", `メモ_${new Date().toLocaleTimeString()}`); if(!name) return;
         const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.7); a.download = `${name}.jpg`; a.click();
@@ -226,15 +239,14 @@
         const a = document.createElement('a'); a.href = URL.createObjectURL(audioBlob); a.download = `${name}.mp4`; a.click();
     };
     dlTextBtn.onclick = () => {
-        // 文字列が空でないか、またはエリアにテキストがあるか最終確認
         const content = fullTranscript || transcriptionArea.innerText.replace("文字起こしログ:", "");
-        if(!content.trim()) { alert("文字データがまだありません。"); return; }
+        if(!content.trim()) return;
         const name = prompt("テキスト名:", `文字起こし_${new Date().toLocaleTimeString()}`); if(!name) return;
         const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), content], { type: 'text/plain;charset=utf-8' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name}.txt`; a.click();
     };
 
-    // --- 録音制御（DLボタンの有効化を強化） ---
+    // 録音
     recordBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -243,23 +255,16 @@
             recorder.onstop = () => {
                 audioBlob = new Blob(chunks, { type: 'audio/mp4' });
                 dlAudioBtn.disabled = false;
-                // 停止時に文字が少しでもあれば確実に有効化
-                if (fullTranscript.trim().length > 0 || (transcriptionArea.innerText.length > 15)) {
+                if (fullTranscript.trim().length > 0 || transcriptionArea.innerText.includes(" ")) {
                     dlTextBtn.disabled = false;
                 }
                 header.classList.remove('recording-active');
             };
-
             recorder.start();
             header.classList.add('recording-active');
-            
-            if (recognition) { 
-                fullTranscript = ""; 
-                transcriptionArea.innerHTML = "聴き取り中...";
-                recognition.start(); 
-            }
+            if (recognition) { fullTranscript = ""; transcriptionArea.innerHTML = "聴き取り中..."; recognition.start(); }
             recordBtn.disabled = true; stopBtn.disabled = false;
-        } catch(e) { alert("マイクの許可が必要です"); }
+        } catch(e) { alert("マイク許可が必要です"); }
     };
 
     stopBtn.onclick = () => {
