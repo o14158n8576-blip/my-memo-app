@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Aqua Visual Studio</title>
+    <title>録音メモ Pro - Aqua Final Fix</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30;
@@ -15,13 +15,12 @@
             --btn-text: #444;
         }
 
-        /* ダークモード用の色定義 */
         body.dark-mode {
             --bg-app: #1c1c1e;
             --bg-header: rgba(44, 44, 46, 0.9);
             --bg-header-rec: rgba(10, 80, 160, 0.95);
             --text-main: #f2f2f7;
-            --canvas-bg: #2c2c2e;
+            --canvas-bg: #1c1c1e; /* メモ欄も黒へ */
             --btn-text: #f2f2f7;
         }
 
@@ -45,11 +44,13 @@
         header.recording-active { background: var(--bg-header-rec); color: #fff; }
 
         .header-top { display: flex; justify-content: center; align-items: center; position: relative; height: 40px; }
-        .app-title { font-size: 24px; font-weight: 800; color: var(--btn-text); letter-spacing: 2px; }
+        .app-title { font-size: 22px; font-weight: 800; color: var(--btn-text); letter-spacing: 2px; }
+        header.recording-active .app-title { color: #fff; }
 
-        /* 波形ビジュアライザー */
+        /* 波形ビジュアライザー：サイズと透明背景を固定 */
         #visualizer {
-            display: none; width: 60px; height: 25px; position: absolute; left: 0;
+            display: none; width: 80px; height: 30px; position: absolute; left: 0;
+            background: transparent;
         }
         header.recording-active #visualizer { display: block; }
 
@@ -81,14 +82,14 @@
         body.dark-mode #transcription-area { background: rgba(44, 44, 46, 0.95); color: #fff; border-color: #555; }
 
         #scroll-area { flex-grow: 1; overflow-y: auto; background: var(--canvas-bg); position: relative; margin-top: 155px; }
-        canvas { display: block; margin: 0 auto; touch-action: none; background: var(--canvas-bg); }
+        canvas#mainCanvas { display: block; margin: 0 auto; touch-action: none; background: var(--canvas-bg); }
     </style>
 </head>
 <body>
 
 <header id="mainHeader">
     <div class="header-top">
-        <canvas id="visualizer"></canvas>
+        <canvas id="visualizer" width="160" height="60"></canvas>
         <div class="app-title">メモ＆録音</div>
         <button id="themeToggle" class="btn btn-white" style="position:absolute; right:0;">🌙 モード切替</button>
     </div>
@@ -145,30 +146,31 @@
     let recorder, chunks = [], recognition, fullTranscript = "", audioBlob = null;
     let isTextVisible = false;
 
-    // ビジュアライザー用変数
+    // ビジュアライザー用
     let audioCtx, analyser, dataArray, animationId;
     const vCanvas = document.getElementById('visualizer');
     const vCtx = vCanvas.getContext('2d');
 
     const colors = ['#000000','#333333','#ff3b30','#ff9500','#ffcc00','#4cd964','#5ac8fa','#007aff','#5856d6','#ff2d55','#8e8e93','#ffffff'];
 
-    // ダークモード切替
+    // --- ダークモード切替の修正：キャンバス塗りつぶしも含む ---
     themeToggle.onclick = () => {
-        document.body.classList.toggle('dark-mode');
-        const isDark = document.body.classList.contains('dark-mode');
+        const isDark = document.body.classList.toggle('dark-mode');
         themeToggle.textContent = isDark ? '☀️ モード切替' : '🌙 モード切替';
-        // キャンバスの背景を再描画（既存の線は保持）
+        
+        // 現在の絵を一時保存
         const temp = canvas.toDataURL();
         const img = new Image();
         img.src = temp;
         img.onload = () => {
-            ctx.fillStyle = isDark ? "#2c2c2e" : "#ffffff";
+            // 背景色を現在のモードに合わせて塗りつぶす
+            ctx.fillStyle = isDark ? "#1c1c1e" : "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // 保存しておいた絵を上に重ねる
             ctx.drawImage(img, 0, 0);
         };
     };
 
-    // 音声認識
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
         recognition = new SpeechRecognition();
@@ -186,7 +188,10 @@
 
     function init() {
         canvas.width = window.innerWidth; canvas.height = 4000;
-        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // 初期背景色設定
+        ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#1c1c1e" : "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
         const palette = document.getElementById('colorPalette');
         colors.forEach(c => {
             const dot = document.createElement('div');
@@ -204,11 +209,9 @@
     function updateStyle() {
         ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = 1.0;
         if (tool === 'eraser') { 
-            ctx.globalCompositeOperation = 'destination-out'; 
-            ctx.lineWidth = size * 5; 
+            ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = size * 5; 
         } else if (tool === 'marker') { 
-            ctx.globalCompositeOperation = 'source-over'; 
-            ctx.lineWidth = size * 6; ctx.globalAlpha = 0.04; ctx.strokeStyle = color; 
+            ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = size * 6; ctx.globalAlpha = 0.04; ctx.strokeStyle = color; 
         } else { 
             ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = color; ctx.lineWidth = size; 
         }
@@ -224,7 +227,7 @@
         const img = new Image(); img.src = undoStack[undoStack.length - 1];
         img.onload = () => { 
             ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1.0; 
-            ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#2c2c2e" : "#ffffff";
+            ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#1c1c1e" : "#ffffff";
             ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); 
         };
     };
@@ -244,18 +247,16 @@
 
     document.getElementById('sizeSlider').oninput = (e) => { size = e.target.value; };
 
-    // 全消去
     document.getElementById('clearBtn').onclick = () => {
         if(confirm("すべて消去しますか？")) {
             ctx.globalCompositeOperation = 'source-over';
-            ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#2c2c2e" : "#ffffff";
+            ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#1c1c1e" : "#ffffff";
             ctx.fillRect(0,0,canvas.width,canvas.height);
             fullTranscript = ""; transcriptionArea.innerHTML = ""; audioBlob = null;
             dlAudioBtn.disabled = true; dlTextBtn.disabled = true; saveState();
         }
     };
 
-    // ダウンロード
     document.getElementById('dlImgBtn').onclick = () => {
         const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.7); a.download = `メモ_${Date.now()}.jpg`; a.click();
     };
@@ -267,39 +268,39 @@
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `文字起こし_${Date.now()}.txt`; a.click();
     };
 
-    // 表示切替
     document.getElementById('toggleTextBtn').onclick = () => {
         isTextVisible = !isTextVisible;
         transcriptionArea.style.display = isTextVisible ? 'block' : 'none';
         document.getElementById('toggleTextBtn').textContent = isTextVisible ? '🙈 文字隠す' : '👀 文字表示';
     };
 
-    // --- ビジュアライザー描画 ---
+    // --- ビジュアライザー描画の修正 ---
     function drawVisualizer() {
         animationId = requestAnimationFrame(drawVisualizer);
         analyser.getByteFrequencyData(dataArray);
         vCtx.clearRect(0, 0, vCanvas.width, vCanvas.height);
-        vCtx.fillStyle = '#fff';
-        const barWidth = (vCanvas.width / 10);
+        vCtx.fillStyle = '#ffffff'; // 波形は常に白
+        const barWidth = 10;
         for(let i = 0; i < 10; i++) {
+            // dataArray[i*2] を使って中低音域をメインに表示
             const barHeight = (dataArray[i * 2] / 255) * vCanvas.height;
-            vCtx.fillRect(i * (barWidth + 2), vCanvas.height - barHeight, barWidth, barHeight);
+            vCtx.fillRect(i * (barWidth + 4), vCanvas.height - barHeight, barWidth, barHeight);
         }
     }
 
-    // 録音
     recordBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
-            // ビジュアライザー設定
+            // Web Audio APIの設定
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const source = audioCtx.createMediaStreamSource(stream);
             analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 64;
+            analyser.fftSize = 64; // 解像度
             source.connect(analyser);
             dataArray = new Uint8Array(analyser.frequencyBinCount);
-            drawVisualizer();
+            
+            drawVisualizer(); // 描画開始
 
             recorder = new MediaRecorder(stream); chunks = [];
             recorder.ondataavailable = e => chunks.push(e.data);
@@ -318,7 +319,7 @@
     };
 
     stopBtn.onclick = () => {
-        recorder.stop();
+        if (recorder) recorder.stop();
         if (recognition) recognition.stop();
         if (audioCtx) audioCtx.close();
         recordBtn.disabled = false; stopBtn.disabled = true;
