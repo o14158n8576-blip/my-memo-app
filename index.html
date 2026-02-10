@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Sakura Final Fix</title>
+    <title>録音メモ Pro - Sakura View Toggle</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30; --success: #34c759;
@@ -38,10 +38,6 @@
         }
         .mode-btn.active { background: #fff; color: #000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
-        .color-list { display: flex; gap: 8px; overflow-x: auto; padding: 2px; align-items: center; }
-        .color-dot { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); flex-shrink: 0; }
-        .color-dot.active { transform: scale(1.2); border-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
-
         button.btn {
             padding: 8px 12px; border-radius: 10px; border: none; font-weight: 700; font-size: 13px;
             cursor: pointer; transition: transform 0.1s; display: flex; align-items: center; gap: 4px;
@@ -50,9 +46,12 @@
         .btn-blue { background: var(--primary); color: #fff; }
         .btn-red { background: var(--danger); color: #fff; }
         .btn-dl { background: rgba(255, 255, 255, 0.4); color: #fff; }
-        .btn-dl:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn-toggle { background: rgba(255, 255, 255, 0.6); color: #d0006f; } /* 表示切替用 */
         #clearBtn { background: rgba(0,0,0,0.25); color: #fff; font-weight: 900; }
 
+        .color-list { display: flex; gap: 8px; overflow-x: auto; padding: 2px; align-items: center; }
+        .color-dot { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); flex-shrink: 0; }
+        .color-dot.active { transform: scale(1.2); border-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
         .slider-container { display: flex; align-items: center; gap: 5px; color: #fff; font-weight: bold; font-size: 14px; margin-right: 10px; }
 
         #transcription-area {
@@ -87,6 +86,7 @@
         <button id="undoBtn" class="btn btn-white">↩️ 戻る</button>
         
         <div class="row" style="margin-left:auto;">
+            <button id="toggleTextBtn" class="btn btn-toggle">👀 文字表示</button>
             <button id="dlImgBtn" class="btn btn-dl">🖼 画像DL</button>
             <button id="dlAudioBtn" class="btn btn-dl" disabled>🎵 音声DL</button>
             <button id="dlTextBtn" class="btn btn-dl" disabled>📄 文字DL</button>
@@ -119,31 +119,35 @@
     const transcriptionArea = document.getElementById('transcription-area');
     const dlAudioBtn = document.getElementById('dlAudioBtn');
     const dlTextBtn = document.getElementById('dlTextBtn');
+    const toggleTextBtn = document.getElementById('toggleTextBtn');
 
     let isDrawing = false, mode = 'draw', tool = 'pen', color = '#000000', size = 3, undoStack = [];
     let recorder, chunks = [], recognition, fullTranscript = "", audioBlob = null;
+    let isTextVisible = false; // 文字エリアが表示されているかどうか
 
     const colors = ['#000000','#333333','#ff3b30','#ff9500','#ffcc00','#4cd964','#5ac8fa','#007aff','#5856d6','#ff2d55','#8e8e93','#ffffff'];
 
-    // --- 音声認識の初期化 ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
         recognition = new SpeechRecognition();
         recognition.lang = 'ja-JP'; recognition.continuous = true; recognition.interimResults = true;
-        
         recognition.onresult = (event) => {
             let interimTranscript = '';
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                if (event.results[i].isFinal) {
-                    fullTranscript += event.results[i][0].transcript + ' ';
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
-                }
+                if (event.results[i].isFinal) fullTranscript += event.results[i][0].transcript + ' ';
+                else interimTranscript += event.results[i][0].transcript;
             }
             transcriptionArea.innerHTML = `<strong>リアルタイム文字起こし:</strong><br>${fullTranscript}<span style="color:#888;">${interimTranscript}</span>`;
             transcriptionArea.scrollTop = transcriptionArea.scrollHeight;
         };
     }
+
+    // 文字起こし表示・非表示の切り替え
+    toggleTextBtn.onclick = () => {
+        isTextVisible = !isTextVisible;
+        transcriptionArea.style.display = isTextVisible ? 'block' : 'none';
+        toggleTextBtn.textContent = isTextVisible ? '🙈 文字隠す' : '👀 文字表示';
+    };
 
     function init() {
         canvas.width = window.innerWidth; canvas.height = 4000;
@@ -194,7 +198,7 @@
     document.getElementById('sizeSlider').oninput = (e) => { size = e.target.value; };
     
     document.getElementById('clearBtn').onclick = () => {
-        if(confirm("全消去しますか？（メモ・録音・文字起こしがリセットされます）")) {
+        if(confirm("全消去しますか？")) {
             ctx.globalCompositeOperation = 'source-over';
             ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
             fullTranscript = ""; transcriptionArea.innerHTML = "";
@@ -205,7 +209,6 @@
         }
     };
 
-    // --- ダウンロード処理 ---
     document.getElementById('dlImgBtn').onclick = () => {
         const name = prompt("画像ファイル名:", `メモ_${new Date().toLocaleTimeString()}`); if(!name) return;
         const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.7); a.download = `${name}.jpg`; a.click();
@@ -219,7 +222,7 @@
     };
 
     dlTextBtn.onclick = () => {
-        if(!fullTranscript) { alert("文字データがありません。"); return; }
+        if(!fullTranscript) return;
         const name = prompt("テキストファイル名:", `文字起こし_${new Date().toLocaleTimeString()}`); if(!name) return;
         const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
         const blob = new Blob([bom, fullTranscript], { type: 'text/plain;charset=utf-8' });
@@ -227,27 +230,20 @@
         const a = document.createElement('a'); a.href = url; a.download = `${name}.txt`; a.click();
     };
 
-    // --- 録音制御（停止時にボタンを有効化する修正） ---
     document.getElementById('recordBtn').onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             recorder = new MediaRecorder(stream); chunks = [];
             recorder.ondataavailable = e => chunks.push(e.data);
-            
             recorder.onstop = () => {
                 audioBlob = new Blob(chunks, { type: 'audio/mp4' });
-                dlAudioBtn.disabled = false; // 音声DLを有効化
-                // 文字起こしが1文字でもある、またはエリアが空でない場合に文字DLを有効化
-                if (fullTranscript.trim().length > 0 || transcriptionArea.innerText.length > 20) {
-                    dlTextBtn.disabled = false;
-                }
+                dlAudioBtn.disabled = false;
+                if (fullTranscript.trim().length > 0) dlTextBtn.disabled = false;
             };
-
             recorder.start();
             if (recognition) { 
                 fullTranscript = ""; 
                 transcriptionArea.innerHTML = "聴き取り中...";
-                transcriptionArea.style.display = 'block'; 
                 recognition.start(); 
             }
             document.getElementById('recordBtn').disabled = true; document.getElementById('stopBtn').disabled = false;
