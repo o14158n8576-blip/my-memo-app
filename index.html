@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Sakura AI</title>
+    <title>録音メモ Pro - Sakura AI Fixed</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30; --success: #34c759;
@@ -58,7 +58,6 @@
 
         .slider-container { display: flex; align-items: center; gap: 5px; color: #fff; font-weight: bold; font-size: 14px; }
 
-        /* 文字起こし表示エリア */
         #transcription-area {
             position: fixed; top: 155px; left: 16px; right: 16px; z-index: 900;
             background: rgba(255, 255, 255, 0.7); border-radius: 12px;
@@ -139,10 +138,9 @@
 
     const colors = ['#000000','#333333','#ff3b30','#ff9500','#ffcc00','#4cd964','#5ac8fa','#007aff','#5856d6','#ff2d55','#8e8e93','#ffffff'];
 
-    // --- 音声認識 (Speech Recognition) の設定 ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition;
-    let fullTranscript = ""; // 全体の文字起こし保存用
+    let fullTranscript = "";
 
     if (SpeechRecognition) {
         recognition = new SpeechRecognition();
@@ -155,7 +153,7 @@
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
-                    fullTranscript += transcript + '。';
+                    fullTranscript += transcript + ' ';
                 } else {
                     interimTranscript += transcript;
                 }
@@ -199,7 +197,6 @@
     function updateStyle() {
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.globalAlpha = 1.0;
-        
         if (tool === 'eraser') {
             ctx.globalCompositeOperation = 'destination-out';
             ctx.lineWidth = size * 5;
@@ -285,7 +282,6 @@
         const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.7); a.download = `${name}.jpg`; a.click();
     };
 
-    // --- 録音 ＋ 文字起こし 制御 ---
     let recorder; let chunks = [];
     document.getElementById('recordBtn').onclick = async () => {
         try {
@@ -297,27 +293,25 @@
                 const baseName = `録音メモ_${new Date().toLocaleTimeString()}`;
                 const name = prompt("保存名:", baseName); if(!name) return;
                 
-                // 1. 音声ファイルを保存
                 const blob = new Blob(chunks, { type: 'audio/mp4' });
                 const url = URL.createObjectURL(blob);
                 const aAudio = document.createElement('a'); aAudio.href = url; aAudio.download = `${name}.mp4`; aAudio.click();
 
-                // 2. 文字起こしテキストを保存
+                // 文字化け対策版保存処理
                 if (fullTranscript) {
-                    const textBlob = new Blob([fullTranscript], { type: 'text/plain' });
+                    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]); // BOMを付与
+                    const textBlob = new Blob([bom, fullTranscript], { type: 'text/plain;charset=utf-8' });
                     const textUrl = URL.createObjectURL(textBlob);
                     const aText = document.createElement('a'); aText.href = textUrl; aText.download = `${name}.txt`; aText.click();
                 }
             };
 
-            // 録音と文字起こしを同時スタート
             recorder.start();
             if (recognition) {
                 fullTranscript = "";
                 transcriptionArea.style.display = 'block';
                 recognition.start();
             }
-
             document.getElementById('recordBtn').disabled = true; document.getElementById('stopBtn').disabled = false;
         } catch(e) { alert("マイク許可が必要です"); }
     };
