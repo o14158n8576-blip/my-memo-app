@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Aqua Final Fix</title>
+    <title>録音メモ Pro - Night Mode Fix</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30;
@@ -16,19 +16,19 @@
         }
 
         body.dark-mode {
-            --bg-app: #1c1c1e;
-            --bg-header: rgba(44, 44, 46, 0.9);
-            --bg-header-rec: rgba(10, 80, 160, 0.95);
-            --text-main: #f2f2f7;
-            --canvas-bg: #1c1c1e; /* メモ欄も黒へ */
-            --btn-text: #f2f2f7;
+            --bg-app: #000000;
+            --bg-header: rgba(30, 30, 32, 0.9);
+            --bg-header-rec: rgba(0, 80, 180, 0.95);
+            --text-main: #ffffff;
+            --canvas-bg: #1c1c1e;
+            --btn-text: #ffffff;
         }
 
         body {
             margin: 0; display: flex; flex-direction: column; height: 100vh;
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-app); overflow: hidden; color: var(--text-main);
-            transition: background 0.3s ease;
+            transition: background 0.2s;
         }
 
         header {
@@ -36,53 +36,54 @@
             padding: 10px 16px 15px 16px;
             background: var(--bg-header);
             backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             display: flex; flex-direction: column; gap: 10px;
-            transition: all 0.4s ease;
         }
 
-        header.recording-active { background: var(--bg-header-rec); color: #fff; }
-
         .header-top { display: flex; justify-content: center; align-items: center; position: relative; height: 40px; }
-        .app-title { font-size: 22px; font-weight: 800; color: var(--btn-text); letter-spacing: 2px; }
-        header.recording-active .app-title { color: #fff; }
+        .app-title { font-size: 20px; font-weight: 800; color: var(--btn-text); letter-spacing: 2px; }
 
-        /* 波形ビジュアライザー：サイズと透明背景を固定 */
+        /* 波形ビジュアライザー */
         #visualizer {
             display: none; width: 80px; height: 30px; position: absolute; left: 0;
             background: transparent;
         }
         header.recording-active #visualizer { display: block; }
+        header.recording-active .app-title { color: #fff; }
 
         .row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
-        .segmented-control { display: flex; background: rgba(255, 255, 255, 0.3); border-radius: 10px; padding: 2px; }
-        .mode-btn { padding: 6px 10px; border: none; border-radius: 8px; font-weight: 700; font-size: 12px; background: none; color: var(--btn-text); transition: all 0.2s; min-width: 55px; }
-        .mode-btn.active { background: #fff; color: #000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .segmented-control { display: flex; background: rgba(255, 255, 255, 0.2); border-radius: 10px; padding: 2px; }
+        .mode-btn { padding: 6px 10px; border: none; border-radius: 8px; font-weight: 700; font-size: 12px; background: none; color: var(--btn-text); transition: all 0.2s; min-width: 50px; }
+        .mode-btn.active { background: #fff; color: #000; }
 
         button.btn { padding: 8px 10px; border-radius: 10px; border: none; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; }
         .btn-white { background: #fff; color: #333; }
         .btn-blue { background: var(--primary); color: #fff; }
         .btn-red { background: var(--danger); color: #fff; }
-        .btn-dl { background: rgba(255, 255, 255, 0.4); color: var(--btn-text); }
+        .btn-dl { background: rgba(255, 255, 255, 0.3); color: var(--btn-text); }
         .btn-toggle { background: rgba(0, 122, 255, 0.1); color: var(--primary); }
         #clearBtn { background: rgba(0,0,0,0.1); color: var(--btn-text); margin-left: auto; }
         
-        button:disabled { opacity: 0.2; cursor: not-allowed; }
+        button:disabled { opacity: 0.2; }
 
-        .color-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .color-dot.active { transform: scale(1.15); border-color: var(--primary); }
+        .color-dot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .color-dot.active { transform: scale(1.2); border-color: var(--primary); }
 
         #transcription-area {
             position: fixed; top: 155px; left: 16px; right: 16px; z-index: 900;
-            background: rgba(255, 255, 255, 0.95); border-radius: 12px;
-            padding: 12px; font-size: 14px; color: #333; min-height: 40px; max-height: 120px;
+            background: rgba(255, 255, 255, 0.9); border-radius: 12px;
+            padding: 12px; font-size: 14px; color: #333; max-height: 120px;
             overflow-y: auto; display: none; border: 1px solid #add8e6;
             backdrop-filter: blur(10px);
         }
-        body.dark-mode #transcription-area { background: rgba(44, 44, 46, 0.95); color: #fff; border-color: #555; }
+        body.dark-mode #transcription-area { background: rgba(40, 40, 42, 0.95); color: #fff; border-color: #444; }
 
-        #scroll-area { flex-grow: 1; overflow-y: auto; background: var(--canvas-bg); position: relative; margin-top: 155px; }
-        canvas#mainCanvas { display: block; margin: 0 auto; touch-action: none; background: var(--canvas-bg); }
+        #scroll-area { 
+            flex-grow: 1; overflow-y: auto; 
+            background: var(--canvas-bg); /* ここでCSS変数を使用 */
+            position: relative; margin-top: 155px; 
+        }
+        canvas#mainCanvas { display: block; margin: 0 auto; touch-action: none; background: transparent; }
     </style>
 </head>
 <body>
@@ -153,20 +154,22 @@
 
     const colors = ['#000000','#333333','#ff3b30','#ff9500','#ffcc00','#4cd964','#5ac8fa','#007aff','#5856d6','#ff2d55','#8e8e93','#ffffff'];
 
-    // --- ダークモード切替の修正：キャンバス塗りつぶしも含む ---
+    // --- ナイトモード切替の完全修正 ---
     themeToggle.onclick = () => {
         const isDark = document.body.classList.toggle('dark-mode');
         themeToggle.textContent = isDark ? '☀️ モード切替' : '🌙 モード切替';
         
-        // 現在の絵を一時保存
+        // 背景色を決定
+        const bgColor = isDark ? "#1c1c1e" : "#ffffff";
+        
+        // 既存の描画内容を保持しつつ背景を塗り替える
         const temp = canvas.toDataURL();
         const img = new Image();
         img.src = temp;
         img.onload = () => {
-            // 背景色を現在のモードに合わせて塗りつぶす
-            ctx.fillStyle = isDark ? "#1c1c1e" : "#ffffff";
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = bgColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            // 保存しておいた絵を上に重ねる
             ctx.drawImage(img, 0, 0);
         };
     };
@@ -188,8 +191,8 @@
 
     function init() {
         canvas.width = window.innerWidth; canvas.height = 4000;
-        // 初期背景色設定
-        ctx.fillStyle = document.body.classList.contains('dark-mode') ? "#1c1c1e" : "#ffffff";
+        const isDark = document.body.classList.contains('dark-mode');
+        ctx.fillStyle = isDark ? "#1c1c1e" : "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         const palette = document.getElementById('colorPalette');
@@ -274,16 +277,15 @@
         document.getElementById('toggleTextBtn').textContent = isTextVisible ? '🙈 文字隠す' : '👀 文字表示';
     };
 
-    // --- ビジュアライザー描画の修正 ---
+    // --- ビジュアライザー描画 ---
     function drawVisualizer() {
         animationId = requestAnimationFrame(drawVisualizer);
         analyser.getByteFrequencyData(dataArray);
         vCtx.clearRect(0, 0, vCanvas.width, vCanvas.height);
-        vCtx.fillStyle = '#ffffff'; // 波形は常に白
-        const barWidth = 10;
-        for(let i = 0; i < 10; i++) {
-            // dataArray[i*2] を使って中低音域をメインに表示
-            const barHeight = (dataArray[i * 2] / 255) * vCanvas.height;
+        vCtx.fillStyle = '#ffffff'; 
+        const barWidth = 12;
+        for(let i = 0; i < 8; i++) {
+            const barHeight = (dataArray[i * 3] / 255) * vCanvas.height;
             vCtx.fillRect(i * (barWidth + 4), vCanvas.height - barHeight, barWidth, barHeight);
         }
     }
@@ -292,15 +294,15 @@
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
-            // Web Audio APIの設定
+            // Web Audio API
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const source = audioCtx.createMediaStreamSource(stream);
             analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 64; // 解像度
+            analyser.fftSize = 64;
             source.connect(analyser);
             dataArray = new Uint8Array(analyser.frequencyBinCount);
             
-            drawVisualizer(); // 描画開始
+            drawVisualizer(); 
 
             recorder = new MediaRecorder(stream); chunks = [];
             recorder.ondataavailable = e => chunks.push(e.data);
