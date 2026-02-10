@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>録音メモ Pro - Sakura View Toggle</title>
+    <title>録音メモ Pro - Sakura Visual REC</title>
     <style>
         :root {
             --primary: #007aff; --danger: #ff3b30; --success: #34c759;
             --bg-app: #f2f2f7;
             --bg-header-sakura: rgba(255, 105, 180, 0.9);
+            --bg-header-recording: rgba(255, 59, 48, 0.9); /* 録音中の赤色 */
             --text-color: #1c1c1e;
         }
         body {
@@ -24,30 +25,40 @@
             backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
             display: flex; flex-direction: column; gap: 10px;
+            transition: background 0.4s ease; /* 色の変化を滑らかに */
+        }
+
+        /* 録音中のヘッダー状態 */
+        header.recording-active {
+            background: var(--bg-header-recording);
         }
 
         .header-top { display: flex; justify-content: center; align-items: center; position: relative; height: 40px; }
         .app-title { font-size: 26px; font-weight: 900; color: #fff; letter-spacing: 3px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 
-        .row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
-
-        .segmented-control { display: flex; background: rgba(255, 255, 255, 0.3); border-radius: 10px; padding: 2px; flex-shrink: 0; }
-        .mode-btn {
-            padding: 7px 12px; border: none; border-radius: 8px; font-weight: 700; font-size: 13px;
-            background: none; color: #fff; transition: all 0.2s; min-width: 60px;
+        /* RECインジケーター */
+        .rec-indicator {
+            display: none; align-items: center; gap: 5px; color: #fff; font-size: 14px; font-weight: bold;
+            position: absolute; left: 0; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 20px;
         }
+        header.recording-active .rec-indicator { display: flex; }
+        .dot { width: 10px; height: 10px; background: #fff; border-radius: 50%; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+
+        .row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
+        .segmented-control { display: flex; background: rgba(255, 255, 255, 0.3); border-radius: 10px; padding: 2px; flex-shrink: 0; }
+        .mode-btn { padding: 7px 12px; border: none; border-radius: 8px; font-weight: 700; font-size: 13px; background: none; color: #fff; transition: all 0.2s; min-width: 60px; }
         .mode-btn.active { background: #fff; color: #000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
-        button.btn {
-            padding: 8px 12px; border-radius: 10px; border: none; font-weight: 700; font-size: 13px;
-            cursor: pointer; transition: transform 0.1s; display: flex; align-items: center; gap: 4px;
-        }
+        button.btn { padding: 8px 12px; border-radius: 10px; border: none; font-weight: 700; font-size: 13px; cursor: pointer; transition: transform 0.1s, opacity 0.2s; display: flex; align-items: center; gap: 4px; }
         .btn-white { background: #fff; color: #000; }
         .btn-blue { background: var(--primary); color: #fff; }
         .btn-red { background: var(--danger); color: #fff; }
         .btn-dl { background: rgba(255, 255, 255, 0.4); color: #fff; }
-        .btn-toggle { background: rgba(255, 255, 255, 0.6); color: #d0006f; } /* 表示切替用 */
+        .btn-toggle { background: rgba(255, 255, 255, 0.6); color: #d0006f; }
         #clearBtn { background: rgba(0,0,0,0.25); color: #fff; font-weight: 900; }
+        
+        button:disabled { opacity: 0.2; cursor: not-allowed; }
 
         .color-list { display: flex; gap: 8px; overflow-x: auto; padding: 2px; align-items: center; }
         .color-dot { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); flex-shrink: 0; }
@@ -56,22 +67,24 @@
 
         #transcription-area {
             position: fixed; top: 155px; left: 16px; right: 16px; z-index: 900;
-            background: rgba(255, 255, 255, 0.85); border-radius: 12px;
-            padding: 10px; font-size: 14px; color: #333; min-height: 40px; max-height: 80px;
-            overflow-y: auto; box-shadow: 0 2px 15px rgba(0,0,0,0.1);
-            display: none; border: 1px solid rgba(255, 105, 180, 0.4);
-            backdrop-filter: blur(8px);
+            background: rgba(255, 255, 255, 0.9); border-radius: 12px;
+            padding: 12px; font-size: 14px; color: #333; min-height: 40px; max-height: 100px;
+            overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            display: none; border: 2px solid rgba(255, 59, 48, 0.3);
+            backdrop-filter: blur(10px);
         }
 
         #scroll-area { flex-grow: 1; overflow-y: auto; overflow-x: hidden; background: #fff; position: relative; margin-top: 155px; }
         canvas { background: #fff; display: block; margin: 0 auto; touch-action: none; }
-        #eraser-cursor { position: absolute; border: 2px solid rgba(0,0,0,0.3); background: rgba(255,255,255,0.3); border-radius: 50%; pointer-events: none; display: none; z-index: 500; }
     </style>
 </head>
 <body>
 
 <header id="mainHeader">
-    <div class="header-top"><div class="app-title">メモ＆録音</div></div>
+    <div class="header-top">
+        <div class="rec-indicator"><div class="dot"></div>録音中...</div>
+        <div class="app-title">メモ＆録音</div>
+    </div>
 
     <div class="row">
         <div class="segmented-control">
@@ -99,7 +112,7 @@
         <div class="slider-container"><span>細</span><input type="range" id="sizeSlider" min="1" max="60" value="3" style="width:100px; accent-color:#fff;"><span>太</span></div>
         <div class="row" style="margin-left:auto;">
             <button id="recordBtn" class="btn btn-blue">🔴 録音開始</button>
-            <button id="stopBtn" class="btn btn-red" disabled>■ 停止</button>
+            <button id="stopBtn" class="btn btn-red" disabled style="box-shadow: 0 0 10px rgba(255,255,255,0.5);">■ 停止</button>
         </div>
     </div>
 </header>
@@ -107,23 +120,23 @@
 <div id="transcription-area"></div>
 
 <div id="scroll-area">
-    <div id="eraser-cursor"></div>
     <canvas id="mainCanvas"></canvas>
 </div>
 
 <script>
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
-    const scrollArea = document.getElementById('scroll-area');
-    const eraserCursor = document.getElementById('eraser-cursor');
+    const header = document.getElementById('mainHeader');
     const transcriptionArea = document.getElementById('transcription-area');
     const dlAudioBtn = document.getElementById('dlAudioBtn');
     const dlTextBtn = document.getElementById('dlTextBtn');
     const toggleTextBtn = document.getElementById('toggleTextBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const stopBtn = document.getElementById('stopBtn');
 
     let isDrawing = false, mode = 'draw', tool = 'pen', color = '#000000', size = 3, undoStack = [];
     let recorder, chunks = [], recognition, fullTranscript = "", audioBlob = null;
-    let isTextVisible = false; // 文字エリアが表示されているかどうか
+    let isTextVisible = false;
 
     const colors = ['#000000','#333333','#ff3b30','#ff9500','#ffcc00','#4cd964','#5ac8fa','#007aff','#5856d6','#ff2d55','#8e8e93','#ffffff'];
 
@@ -142,7 +155,6 @@
         };
     }
 
-    // 文字起こし表示・非表示の切り替え
     toggleTextBtn.onclick = () => {
         isTextVisible = !isTextVisible;
         transcriptionArea.style.display = isTextVisible ? 'block' : 'none';
@@ -163,7 +175,7 @@
         saveState(); adjustLayout();
     }
 
-    function adjustLayout() { scrollArea.style.marginTop = document.getElementById('mainHeader').offsetHeight + 'px'; }
+    function adjustLayout() { document.getElementById('scroll-area').style.marginTop = header.offsetHeight + 'px'; }
     function getXY(e) { const rect = canvas.getBoundingClientRect(), t = e.touches ? e.touches[0] : e; return { x: t.clientX - rect.left, y: t.clientY - rect.top }; }
 
     function updateStyle() {
@@ -173,13 +185,11 @@
         else { ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = color; ctx.lineWidth = size; }
     }
 
-    canvas.addEventListener('touchstart', (e) => { if (mode !== 'draw') return; isDrawing = true; const pos = getXY(e); updateStyle(); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); if(tool === 'eraser') showEraserCursor(pos.x, pos.y); }, {passive: false});
-    canvas.addEventListener('touchmove', (e) => { if (!isDrawing) return; if (e.cancelable) e.preventDefault(); const pos = getXY(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); if(tool === 'eraser') showEraserCursor(pos.x, pos.y); }, {passive: false});
-    canvas.addEventListener('touchend', () => { if(isDrawing) { isDrawing = false; saveState(); } eraserCursor.style.display = 'none'; });
+    canvas.addEventListener('touchstart', (e) => { if (mode !== 'draw') return; isDrawing = true; const pos = getXY(e); updateStyle(); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); }, {passive: false});
+    canvas.addEventListener('touchmove', (e) => { if (!isDrawing) return; if (e.cancelable) e.preventDefault(); const pos = getXY(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); }, {passive: false});
+    canvas.addEventListener('touchend', () => { if(isDrawing) { isDrawing = false; saveState(); } });
 
-    function showEraserCursor(x, y) { const eSize = size * 5; eraserCursor.style.display = 'block'; eraserCursor.style.width = eSize + 'px'; eraserCursor.style.height = eSize + 'px'; eraserCursor.style.left = (x - eSize/2) + 'px'; eraserCursor.style.top = (y - eSize/2) + 'px'; }
     function saveState() { if (undoStack.length > 20) undoStack.shift(); undoStack.push(canvas.toDataURL()); }
-
     document.getElementById('undoBtn').onclick = () => { if (undoStack.length <= 1) return; undoStack.pop(); const img = new Image(); img.src = undoStack[undoStack.length - 1]; img.onload = () => { ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1.0; ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); }; };
 
     const btns = ['drawMode','scrollMode','penTool','markerTool','eraserTool'];
@@ -192,45 +202,38 @@
         document.getElementById('markerTool').classList.toggle('active', tool === 'marker');
         document.getElementById('eraserTool').classList.toggle('active', tool === 'eraser');
         canvas.style.touchAction = (mode === 'scroll') ? 'pan-y' : 'none';
-        scrollArea.style.overflowY = (mode === 'scroll') ? 'scroll' : 'hidden';
+        document.getElementById('scroll-area').style.overflowY = (mode === 'scroll') ? 'scroll' : 'hidden';
     }
 
     document.getElementById('sizeSlider').oninput = (e) => { size = e.target.value; };
     
     document.getElementById('clearBtn').onclick = () => {
         if(confirm("全消去しますか？")) {
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            fullTranscript = ""; transcriptionArea.innerHTML = "";
-            audioBlob = null;
-            dlAudioBtn.disabled = true;
-            dlTextBtn.disabled = true;
-            saveState();
+            ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            fullTranscript = ""; transcriptionArea.innerHTML = ""; audioBlob = null;
+            dlAudioBtn.disabled = true; dlTextBtn.disabled = true; saveState();
         }
     };
 
+    // ダウンロード処理
     document.getElementById('dlImgBtn').onclick = () => {
         const name = prompt("画像ファイル名:", `メモ_${new Date().toLocaleTimeString()}`); if(!name) return;
         const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 0.7); a.download = `${name}.jpg`; a.click();
     };
-
     dlAudioBtn.onclick = () => {
         if(!audioBlob) return;
         const name = prompt("音声ファイル名:", `録音_${new Date().toLocaleTimeString()}`); if(!name) return;
-        const url = URL.createObjectURL(audioBlob);
-        const a = document.createElement('a'); a.href = url; a.download = `${name}.mp4`; a.click();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(audioBlob); a.download = `${name}.mp4`; a.click();
     };
-
     dlTextBtn.onclick = () => {
         if(!fullTranscript) return;
         const name = prompt("テキストファイル名:", `文字起こし_${new Date().toLocaleTimeString()}`); if(!name) return;
-        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-        const blob = new Blob([bom, fullTranscript], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = `${name}.txt`; a.click();
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), fullTranscript], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name}.txt`; a.click();
     };
 
-    document.getElementById('recordBtn').onclick = async () => {
+    // --- 録音制御（ビジュアル変化の追加） ---
+    recordBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             recorder = new MediaRecorder(stream); chunks = [];
@@ -239,21 +242,25 @@
                 audioBlob = new Blob(chunks, { type: 'audio/mp4' });
                 dlAudioBtn.disabled = false;
                 if (fullTranscript.trim().length > 0) dlTextBtn.disabled = false;
+                header.classList.remove('recording-active'); // ヘッダーを桜色に戻す
             };
+
             recorder.start();
+            header.classList.add('recording-active'); // ヘッダーを赤色にする
+            
             if (recognition) { 
                 fullTranscript = ""; 
                 transcriptionArea.innerHTML = "聴き取り中...";
                 recognition.start(); 
             }
-            document.getElementById('recordBtn').disabled = true; document.getElementById('stopBtn').disabled = false;
+            recordBtn.disabled = true; stopBtn.disabled = false;
         } catch(e) { alert("マイク許可が必要です"); }
     };
 
-    document.getElementById('stopBtn').onclick = () => {
+    stopBtn.onclick = () => {
         if (recorder && recorder.state !== "inactive") recorder.stop();
         if (recognition) recognition.stop();
-        document.getElementById('recordBtn').disabled = false; document.getElementById('stopBtn').disabled = true;
+        recordBtn.disabled = false; stopBtn.disabled = true;
     };
 
     window.onload = init;
